@@ -1,0 +1,12 @@
+# Local configs
+configuration.yaml
+automations.yaml
+scripts.yaml
+template.yaml
+
+# Claude
+.claude
+CLAUDE.md
+
+# External
+ui-ux-pro-max-skill-main
