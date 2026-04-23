@@ -32,6 +32,7 @@ A custom Lovelace card for **Home Assistant** to control an Aqara pet feeder (an
   <img src="screenshots/schedule.png" width="360" alt="Schedule tab">
   <img src="screenshots/feed-now.png" width="360" alt="Feed now tab">
   <img src="screenshots/settings.png" width="360" alt="Settings tab">
+  <img src="screenshots/confirmation.png" width="360" alt="Confirmation popup">
 </p>
 
 ## Requirements
