@@ -127,9 +127,10 @@ Find them at **Settings → Devices & Services → Zigbee2MQTT → your feeder**
 | `entity_error` | `binary_sensor.feeder_error` | Auto (Z2M) |
 | `entity_update` | `update.feeder` | Auto (Z2M) |
 
-### Template sensors (required setup)
+### ⚠️ Required: Template sensors
 
-Three entities used by the card are **not created by Zigbee2MQTT** — you must add them yourself.
+> **The card will not work correctly without these 3 entities.**  
+> They are not created by Zigbee2MQTT — you must add them to your Home Assistant config manually before using the card.
 
 ---
 
