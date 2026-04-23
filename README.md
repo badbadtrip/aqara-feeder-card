@@ -1,18 +1,25 @@
 # Aqara Feeder Card
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![GitHub release](https://img.shields.io/github/release/badbadtrip/aqara-feeder-card.svg)](https://github.com/badbadtrip/aqara-feeder-card/releases)
-[![GitHub stars](https://img.shields.io/github/stars/badbadtrip/aqara-feeder-card.svg)](https://github.com/badbadtrip/aqara-feeder-card/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/badbadtrip/aqara-feeder-card.svg)](https://github.com/badbadtrip/aqara-feeder-card/issues)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
----
-
-## English
+<p align="center">
+  <img src="screenshots/schedule.png" width="360" alt="Schedule tab">
+  <img src="screenshots/feed-now.png" width="360" alt="Feed now tab">
+</p>
 
 A custom Lovelace card for **Home Assistant** to control an Aqara pet feeder (and compatible Zigbee feeders) via [Zigbee2MQTT](https://www.zigbee2mqtt.io/).
 
-### Features
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![Release](https://img.shields.io/github/release/badbadtrip/aqara-feeder-card.svg?style=for-the-badge)](https://github.com/badbadtrip/aqara-feeder-card/releases)
+[![Stars](https://img.shields.io/github/stars/badbadtrip/aqara-feeder-card.svg?style=for-the-badge)](https://github.com/badbadtrip/aqara-feeder-card/stargazers)
+[![Issues](https://img.shields.io/github/issues/badbadtrip/aqara-feeder-card.svg?style=for-the-badge)](https://github.com/badbadtrip/aqara-feeder-card/issues)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+
+---
+
+**[`Installation`](#installation)** **[`Configuration`](#configuration-reference)** **[`Template sensors`](#️-required-template-sensors)** **[`Full example`](#full-yaml-example)** **[`Contributing`](#contributing)**
+
+---
+
+## Features
 
 - **Schedule tab** — view, add, edit and delete feeding schedules; send directly to the feeder via MQTT
 - **Feed now tab** — quick 1–6 portion buttons + custom stepper with confirmation popup
@@ -24,7 +31,7 @@ A custom Lovelace card for **Home Assistant** to control an Aqara pet feeder (an
 - **Live status** — animated online/offline dot, error badge, schedule text in header
 - **Visual config UI** — no YAML required
 
-### Screenshots
+## Screenshots
 
 <p align="center">
   <img src="screenshots/schedule.png" width="360" alt="Schedule tab">
@@ -32,7 +39,7 @@ A custom Lovelace card for **Home Assistant** to control an Aqara pet feeder (an
   <img src="screenshots/settings.png" width="360" alt="Settings tab">
 </p>
 
-### Requirements
+## Requirements
 
 | Requirement | Details |
 | --- | --- |
@@ -41,9 +48,14 @@ A custom Lovelace card for **Home Assistant** to control an Aqara pet feeder (an
 | MQTT integration | Configured in HA |
 | Feeder | Aqara Pet Feeder C1 / E1 or compatible Zigbee feeder |
 
-### Installation
+---
 
-#### Via HACS (recommended)
+## Installation
+
+<details>
+<summary><b>Via HACS (recommended)</b></summary>
+
+<br>
 
 1. Open **HACS** → **Frontend**
 2. Click the three-dot menu → **Custom repositories**
@@ -51,12 +63,19 @@ A custom Lovelace card for **Home Assistant** to control an Aqara pet feeder (an
 4. Click **Download**
 5. Reload your browser
 
-#### Manual
+</details>
+
+<details>
+<summary><b>Manual</b></summary>
+
+<br>
 
 1. Copy `aqara-feeder-card.js` to `/config/www/`
 2. Go to **Settings → Dashboards → Resources**
 3. Add resource: URL `/local/aqara-feeder-card.js`, type: **JavaScript module**
 4. Reload your browser
+
+</details>
 
 ### Adding the card
 
@@ -71,9 +90,14 @@ icon: 🐱
 topic: zigbee2mqtt/Feeder/set
 ```
 
-### Configuration reference
+---
 
-#### General
+## Configuration reference
+
+<details>
+<summary><b>General options</b></summary>
+
+<br>
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -83,7 +107,12 @@ topic: zigbee2mqtt/Feeder/set
 | `max_schedules` | number | `6` | Maximum number of schedule slots |
 | `vibration_enabled` | boolean | `true` | Haptic feedback on mobile |
 
-#### Labels (all optional)
+</details>
+
+<details>
+<summary><b>Labels (all optional)</b></summary>
+
+<br>
 
 | Key | Default |
 | --- | --- |
@@ -94,7 +123,12 @@ topic: zigbee2mqtt/Feeder/set
 | `label_grams_today` | `Grams today` |
 | `label_per_portion` | `Per portion` |
 
-#### Colors (all optional — any valid CSS color value)
+</details>
+
+<details>
+<summary><b>Colors (all optional — any valid CSS color value)</b></summary>
+
+<br>
 
 | Key | Default | Used for |
 | --- | --- | --- |
@@ -106,7 +140,12 @@ topic: zigbee2mqtt/Feeder/set
 | `color_block_bg` | `#1c1f27` | Stats tiles, list rows, popups |
 | `color_block_bg2` | `#262a35` | Buttons, inputs, hover states |
 
-#### Entities
+</details>
+
+<details>
+<summary><b>Entities</b></summary>
+
+<br>
 
 Entity IDs are created automatically by Zigbee2MQTT when the feeder is paired.  
 Find them at **Settings → Devices & Services → Zigbee2MQTT → your feeder**.
@@ -127,14 +166,20 @@ Find them at **Settings → Devices & Services → Zigbee2MQTT → your feeder**
 | `entity_error` | `binary_sensor.feeder_error` | Auto (Z2M) |
 | `entity_update` | `update.feeder` | Auto (Z2M) |
 
-### ⚠️ Required: Template sensors
-
-> **The card will not work correctly without these 3 entities.**  
-> They are not created by Zigbee2MQTT — you must add them to your Home Assistant config manually before using the card.
+</details>
 
 ---
 
-#### `sensor.feeder_schedule_pretty`
+## ⚠️ Required: Template sensors
+
+> [!IMPORTANT]
+> **The card will not work correctly without these 3 entities.**  
+> They are not created by Zigbee2MQTT — you must add them to your Home Assistant config manually before using the card.
+
+<details>
+<summary><b>sensor.feeder_schedule_pretty</b></summary>
+
+<br>
 
 Formats the raw schedule JSON into a human-readable string shown in the card header (e.g. `08:00 - 2 por. | 18:00 - 3 por.`).
 
@@ -163,11 +208,14 @@ Add to your `template.yaml` (or under `template:` in `configuration.yaml`):
 
 > **Note:** `sensor.feeder_schedule` is the raw entity created by Zigbee2MQTT. If your feeder's entity has a different ID, update the `states(...)` call above.
 
----
+</details>
 
-#### `sensor.feeder_portions_per_day`
+<details>
+<summary><b>sensor.feeder_portions_per_day</b></summary>
 
-Counts the number of times the feeder dispensed food today. Uses the [`history_stats`](https://www.home-assistant.io/integrations/history_stats/) integration which is included in Home Assistant by default.
+<br>
+
+Counts the number of times the feeder dispensed food today. Uses the [`history_stats`](https://www.home-assistant.io/integrations/history_stats/) integration included in Home Assistant by default.
 
 Add to `configuration.yaml`:
 
@@ -177,7 +225,6 @@ sensor:
     name: "Feeder Portions Per Day"
     unique_id: feeder_portions_per_day
     entity_id: sensor.feeder_feeding_source
-    # counts every state change (each feeding event)
     state: "schedule"
     type: count
     start: "{{ today_at('00:00') }}"
@@ -194,9 +241,12 @@ sensor:
     end: "{{ now() }}"
 ```
 
-> Alternatively, you can count total feedings regardless of source using a template sensor that watches `sensor.feeder_feeding_size` state changes — see the approach below.
+> **Recommended approach:** use `history_stats` — it is simpler, survives restarts, and resets automatically at midnight.
 
-Or, using a template sensor that increments on any state change of `sensor.feeder_feeding_size` (works for all sources):
+<details>
+<summary>Alternative: template sensor (all feeding sources)</summary>
+
+<br>
 
 ```yaml
 # In template.yaml
@@ -218,11 +268,14 @@ Or, using a template sensor that increments on any state change of `sensor.feede
         last_reset_date: "{{ now().date() | string }}"
 ```
 
-> **Recommended approach:** use `history_stats` — it is simpler, survives restarts, and resets automatically at midnight.
+</details>
 
----
+</details>
 
-#### `sensor.feeder_weight_per_day`
+<details>
+<summary><b>sensor.feeder_weight_per_day</b></summary>
+
+<br>
 
 Calculates total grams dispensed today: `portions_today × grams_per_portion`.  
 Depends on `sensor.feeder_portions_per_day` and `number.feeder_portion_weight` (both must exist).
@@ -241,9 +294,9 @@ Add to `template.yaml`:
         {{ (portions * grams) | round(0) | int }}
 ```
 
----
+</details>
 
-#### Applying changes
+### Applying changes
 
 After adding any of the above, reload the relevant config without restarting HA:
 
@@ -252,7 +305,12 @@ After adding any of the above, reload the relevant config without restarting HA:
 
 ---
 
-### Full YAML example
+## Full YAML example
+
+<details>
+<summary>Click to expand</summary>
+
+<br>
 
 ```yaml
 type: custom:aqara-feeder-card
@@ -289,7 +347,11 @@ entity_error: binary_sensor.feeder_error
 entity_update: update.feeder
 ```
 
-### Finding the MQTT topic
+</details>
+
+---
+
+## Finding the MQTT topic
 
 Open Zigbee2MQTT → **Devices** → find your feeder. The friendly name is used in the topic:
 
@@ -303,10 +365,16 @@ Example — if the friendly name is `Feeder`:
 zigbee2mqtt/Feeder/set
 ```
 
-### Contributing
+---
+
+## Contributing
 
 Issues and pull requests are welcome. Please open an issue before starting large changes.
 
-### License
+[![GitHub](https://img.shields.io/badge/GitHub-Issues-green?logo=github&style=for-the-badge)](https://github.com/badbadtrip/aqara-feeder-card/issues)
+
+---
+
+## License
 
 [MIT](LICENSE)
