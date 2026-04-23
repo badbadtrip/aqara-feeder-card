@@ -1,10 +1,5 @@
 # Aqara Feeder Card
 
-<p align="center">
-  <img src="screenshots/schedule.png" width="360" alt="Schedule tab">
-  <img src="screenshots/feed-now.png" width="360" alt="Feed now tab">
-</p>
-
 A custom Lovelace card for **Home Assistant** to control an Aqara pet feeder (and compatible Zigbee feeders) via [Zigbee2MQTT](https://www.zigbee2mqtt.io/).
 
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
