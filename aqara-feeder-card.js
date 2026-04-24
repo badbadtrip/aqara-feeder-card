@@ -1,5 +1,6 @@
 // Aqara Feeder Card - custom Lovelace card for Home Assistant
 // Dynamic schedules, sends directly via MQTT to zigbee2mqtt
+// Version: 1.0.4
 
 (function () {
   if (customElements.get('aqara-feeder-card')) return;
@@ -66,7 +67,7 @@
           icon: '⚙️',
           title: 'General',
           fields: [
-            { key: 'title',         label: 'Card title', type: 'text',   default: 'Feed the cat' },
+            { key: 'title',         label: 'Card title', type: 'text',   default: 'Feeder' },
             { key: 'icon',          label: 'Icon (emoji or image URL)', type: 'text', default: '🐱',
               note: { type: 'template', text: 'Emoji: just paste the character. Image: provide the full path <code>/config/www/images/your_icon.png</code>. For a 3D effect use a PNG with transparent background — the icon will "float" above the circle.' } },
             { key: 'topic',         label: 'MQTT topic (set)',    type: 'text',   default: 'zigbee2mqtt/Feeder/set' },
@@ -479,7 +480,8 @@
       this._built = false;
       this._activeTab = 'schedule';
       this._timer = null;
-      this._schedules = null;
+      this._schedules = [];
+      this._isLoading = false;
     }
 
     static getConfigElement() {
@@ -488,7 +490,7 @@
 
     static getStubConfig() {
       return {
-        title: 'Feed the cat',
+        title: 'Feeder',
         icon: '🐱',
         topic: 'zigbee2mqtt/Feeder/set',
         max_schedules: 6,
@@ -529,7 +531,7 @@
       var defaults = AqaraFeederCard.getStubConfig();
       this._config = Object.assign({}, defaults, config);
       this._built = false;
-      this._schedules = null;
+      // don't reset this._schedules here — let it persist across config updates
       if (this._hass) this._render();
     }
 
@@ -570,19 +572,17 @@
     }
 
     _getSchedules() {
-      if (this._schedules === null) {
-        var raw = this._state(this._e('entity_schedule'), null);
-        if (raw === null || raw === 'unavailable' || raw === 'unknown') {
-          return [];
-        }
-        var actual = this._getActualSchedule();
-        if (actual.length > 0) {
-          this._schedules = actual.map(function(a) {
-            return { hour: a.hour, minute: a.minute, size: a.size };
-          });
-        } else {
-          this._schedules = [{ hour: 8, minute: 0, size: 3 }];
-        }
+      var raw = this._state(this._e('entity_schedule'), null);
+      if (raw === null || raw === 'unavailable' || raw === 'unknown') {
+        return null;
+      }
+      var actual = this._getActualSchedule();
+      if (actual.length > 0) {
+        // sync local copy with sensor data
+        this._schedules = actual.map(function(a) {
+          return { hour: a.hour, minute: a.minute, size: a.size };
+        });
+        return this._schedules;
       }
       return this._schedules;
     }
@@ -591,6 +591,7 @@
 
     _sendSchedule() {
       var schedules = this._getSchedules();
+      if (schedules === null || schedules.length === 0) return;
       var payload = {
         schedule: schedules.map(function(s) {
           return { days: 'everyday', hour: Math.round(s.hour), minute: Math.round(s.minute), size: Math.round(s.size) };
@@ -626,7 +627,7 @@
     }
 
     _showSent() {
-      var badges = this._shadow.getElementById('hdr-badges');
+      var badges = this._shadow.querySelector('#hdr-badges');
       if (!badges) return;
       var G = 'rgb(206,245,149)';
       var sent = document.createElement('span');
@@ -655,7 +656,7 @@
       var popup = document.createElement('div');
       popup.className = 'popup';
       popup.innerHTML =
-        '<div class="popup-title">Feed the cat?</div>' +
+        '<div class="popup-title">Are you sure?</div>' +
         '<button class="popup-close" aria-label="Close">✕</button>' +
         '<div style="text-align:center;font-size:13px;color:#969aa6;margin-bottom:20px;">' +
           'Will dispense <strong style="color:#fff;">' + size + ' por.</strong> (~' + grams + 'g)' +
@@ -681,6 +682,7 @@
 
     _render() {
       this._built = true;
+      this._isLoading = false;
       var cfg = this._config;
       var Y = cfg.color_accent    || 'rgb(255,218,120)';
       var G = cfg.color_positive  || 'rgb(206,245,149)';
@@ -753,9 +755,22 @@
         '.add-btn:hover{background:' + BG2 + ';border-color:' + Y + ';color:' + Y + ';}' +
         '.apply-btn{flex:2;padding:11px;background:' + Y + ';color:#000;border:none;border-radius:14px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;}' +
         '.apply-btn:hover{opacity:.85;}' +
-        '.empty-state{text-align:center;padding:32px 16px;color:#535865;}' +
+        '.empty-state{text-align:center;padding:40px 16px;}' +
+        '.empty-state.loading{padding:48px 16px;}' +
         '.empty-state-icon{font-size:32px;margin-bottom:8px;}' +
-        '.empty-state-text{font-size:13px;}' +
+        '.empty-state.loading .empty-state-icon{font-size:48px;margin-bottom:16px;animation:bounce 2s ease-in-out infinite;will-change:transform;}' +
+        '.empty-state-text{font-size:13px;color:#636774;line-height:1.5;}' +
+        '.empty-state.loading .empty-state-text{font-size:12px;color:#535865;}' +
+        '.loading-spinner{width:48px;height:48px;margin:0 auto 16px;position:relative;}' +
+        '.loading-ring{position:absolute;width:100%;height:100%;border:3px solid transparent;border-top-color:' + Y + ';border-radius:50%;animation:spin 1.5s linear infinite;will-change:transform;transform:translateZ(0);}' +
+        '.loading-ring::before{content:"";position:absolute;top:4px;left:4px;right:4px;bottom:4px;border:3px solid transparent;border-top-color:' + G + ';border-radius:50%;animation:spin 3s linear infinite reverse;will-change:transform;transform:translateZ(0);}' +
+        '.loading-dots{display:flex;justify-content:center;gap:6px;margin-top:12px;}' +
+        '.loading-dot{width:8px;height:8px;border-radius:50%;background:' + Y + ';animation:dotPulse 1.5s ease-in-out infinite;will-change:opacity,transform;transform:translateZ(0);}' +
+        '.loading-dot:nth-child(2){animation-delay:0.15s;}' +
+        '.loading-dot:nth-child(3){animation-delay:0.3s;}' +
+        '@keyframes spin{0%{transform:rotate(0deg) translateZ(0)}100%{transform:rotate(360deg) translateZ(0)}}' +
+        '@keyframes bounce{0%,100%{transform:translateY(0)}25%{transform:translateY(-6px)}75%{transform:translateY(-6px)}}' +
+        '@keyframes dotPulse{0%,100%{opacity:0.3;transform:scale(1) translateZ(0)}50%{opacity:1;transform:scale(1.5) translateZ(0)}}' +
         '.feed-section-title{font-size:10px;color:#636774;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600;}' +
         '.quick-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}' +
         '.quick-btn{background:' + BG1 + ';border:1px solid ' + BG2 + ';border-radius:14px;padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:all .2s;}' +
@@ -856,11 +871,12 @@
       this._shadow.querySelectorAll('.tab-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
           self._vibrate(10);
+          self._isLoading = false; // reset loading state on tab switch
           self._shadow.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
           btn.classList.add('active');
           self._activeTab = btn.dataset.tab;
           ['schedule','feed','info'].forEach(function(t) {
-            var el = self._shadow.getElementById('tab-' + t);
+            var el = self._shadow.querySelector('#tab-' + t);
             if (el) el.style.display = t === self._activeTab ? '' : 'none';
           });
           self._renderTab(self._activeTab);
@@ -874,18 +890,20 @@
       if (!this._hass) return;
       this._renderHeader();
       this._renderStats();
+      // skip tab re-render while loading to preserve animations and prevent flicker
+      if (this._isLoading) return;
       this._renderTab(this._activeTab);
     }
 
     _renderHeader() {
-      var sub = this._shadow.getElementById('hdr-sub');
-      var badges = this._shadow.getElementById('hdr-badges');
+      var sub = this._shadow.querySelector('#hdr-sub');
+      var badges = this._shadow.querySelector('#hdr-badges');
       if (!sub || !badges) return;
       var mode = this._state(this._e('entity_mode'), 'unavailable');
       var error = this._state(this._e('entity_error')) === 'on';
       var online = mode !== 'unavailable' && mode !== 'unknown';
       var pretty = this._state(this._e('entity_schedule_pretty'), '');
-      var text = pretty || 'No schedule';
+      var text = (pretty && pretty !== 'unavailable' && pretty !== 'unknown') ? pretty : 'No schedule';
       sub.textContent = text;
       sub.title = text;
       var dotHtml = online ? '<div class="online-dot"></div>' : '<div class="offline-dot"></div>';
@@ -895,7 +913,7 @@
     }
 
     _renderStats() {
-      var el = this._shadow.getElementById('stats-row');
+      var el = this._shadow.querySelector('#stats-row');
       if (!el) return;
       var clean = function(v) { return (v === 'unknown' || v === 'unavailable') ? '-' : v; };
       var portions = clean(this._state(this._e('entity_portions_day'), '-'));
@@ -910,7 +928,7 @@
     }
 
     _renderTab(tab) {
-      var el = this._shadow.getElementById('tab-' + tab);
+      var el = this._shadow.querySelector('#tab-' + tab);
       if (!el) return;
       if (tab === 'schedule') this._renderScheduleTab(el);
       else if (tab === 'feed') this._renderFeedTab(el);
@@ -918,27 +936,38 @@
     }
 
     _renderScheduleTab(container) {
+      if (!container) return;
       var self = this;
       var now = new Date();
       var nowMin = now.getHours() * 60 + now.getMinutes();
       var schedules = this._getSchedules();
       var maxSchedules = this._config.max_schedules || 6;
 
-      var sensorRaw = this._state(this._e('entity_schedule'), null);
-      if (this._schedules === null && (sensorRaw === null || sensorRaw === 'unavailable' || sensorRaw === 'unknown')) {
+      if (schedules === null) {
+        this._isLoading = true;
         container.innerHTML =
-          '<div class="empty-state">' +
-            '<div class="empty-state-icon">⏳</div>' +
-            '<div class="empty-state-text">Loading schedule from feeder...</div>' +
+          '<div class="empty-state loading">' +
+            '<div class="loading-spinner">' +
+              '<div class="loading-ring"></div>' +
+            '</div>' +
+            '<div class="empty-state-icon">📡</div>' +
+            '<div class="empty-state-text"><strong>Waiting for Home Assistant</strong><br>Fetching schedule data from the feeder...</div>' +
+            '<div class="loading-dots">' +
+              '<div class="loading-dot"></div>' +
+              '<div class="loading-dot"></div>' +
+              '<div class="loading-dot"></div>' +
+            '</div>' +
           '</div>';
         return;
       }
 
+      this._isLoading = false;
+
       if (schedules.length === 0) {
         container.innerHTML =
           '<div class="empty-state">' +
-            '<div class="empty-state-icon">🗓</div>' +
-            '<div class="empty-state-text">No feedings scheduled yet.<br>Add one below.</div>' +
+            '<div class="empty-state-icon">📅</div>' +
+            '<div class="empty-state-text"><strong>No feedings scheduled</strong><br>Add your first feeding time below.</div>' +
           '</div>' +
           '<div class="sched-actions">' +
             '<button class="add-btn" id="add-slot-btn">+ Add feeding</button>' +
@@ -957,30 +986,33 @@
         return;
       }
 
-      var sorted = schedules.slice().sort(function(a, b) {
-        return (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute);
+      // keep track of original indices after sorting
+      var indexed = schedules.map(function(s, i) { return { s: s, i: i }; });
+      indexed.sort(function(a, b) {
+        return (a.s.hour * 60 + a.s.minute) - (b.s.hour * 60 + b.s.minute);
       });
 
       var nextIdx = -1;
       var minDiff = Infinity;
-      sorted.forEach(function(s, i) {
-        var sm = s.hour * 60 + s.minute;
+      indexed.forEach(function(item, idx) {
+        var sm = item.s.hour * 60 + item.s.minute;
         var diff = sm > nowMin ? sm - nowMin : sm + 1440 - nowMin;
-        if (diff < minDiff) { minDiff = diff; nextIdx = i; }
+        if (diff < minDiff) { minDiff = diff; nextIdx = idx; }
       });
 
       var html = '<div class="schedule-list" id="sched-list">';
-      sorted.forEach(function(s, i) {
+      indexed.forEach(function(item, idx) {
+        var s = item.s;
+        var origIdx = item.i;
         var sm = s.hour * 60 + s.minute;
         var passed = sm <= nowMin;
-        var isNext = i === nextIdx;
+        var isNext = idx === nextIdx;
         var statusClass = passed ? 'done' : isNext ? 'next-s' : 'pending';
         var statusText = passed ? 'Passed' : isNext ? 'Next' : 'Pending';
         var dotClass = passed ? 'passed' : isNext ? 'next-d' : '';
         var timeClass = passed ? 'passed' : '';
         var portionWeight = parseFloat(self._state(self._e('entity_portion_weight'), '5')) || 5;
         var grams = Math.round(s.size * portionWeight);
-        var origIdx = schedules.indexOf(s);
         html +=
           '<div class="sched-item" data-slot="' + origIdx + '" title="Tap to edit">' +
             '<div class="sched-dot ' + dotClass + '"></div>' +
@@ -1115,6 +1147,7 @@
     }
 
     _renderFeedTab(container) {
+      if (!container) return;
       var self = this;
       var portionWeight = parseFloat(this._state(this._e('entity_portion_weight'), '5')) || 5;
       var customSize = 1;
@@ -1175,6 +1208,7 @@
     }
 
     _renderInfoTab(container) {
+      if (!container) return;
       var self = this;
       var portionWeight = this._state(this._e('entity_portion_weight'), '-');
       var lock = this._state(this._e('entity_child_lock')) === 'on';
