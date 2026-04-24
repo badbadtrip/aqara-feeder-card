@@ -3,6 +3,12 @@
 // Version: 1.0.4
 
 (function () {
+  console.info(
+    `%c AQARA-FEEDER-CARD %c v1.0.4 `,
+    'color: white; background: #f5a623; font-weight: bold;',
+    'color: #f5a623; background: white; font-weight: bold;'
+  );
+
   if (customElements.get('aqara-feeder-card')) return;
 
   // --- Config editor element ---
