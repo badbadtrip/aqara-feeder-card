@@ -1,16 +1,31 @@
 # Aqara Feeder Card
 
-A custom Lovelace card for **Home Assistant** to control an Aqara pet feeder (and compatible Zigbee feeders) via [Zigbee2MQTT](https://www.zigbee2mqtt.io/).
+<p align="center">
+  <img src="screenshots/banner.png" alt="Aqara Feeder Card" width="100%">
+</p>
 
-[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
-[![Release](https://img.shields.io/github/release/badbadtrip/aqara-feeder-card.svg?style=for-the-badge)](https://github.com/badbadtrip/aqara-feeder-card/releases)
-[![Stars](https://img.shields.io/github/stars/badbadtrip/aqara-feeder-card.svg?style=for-the-badge)](https://github.com/badbadtrip/aqara-feeder-card/stargazers)
-[![Issues](https://img.shields.io/github/issues/badbadtrip/aqara-feeder-card.svg?style=for-the-badge)](https://github.com/badbadtrip/aqara-feeder-card/issues)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+<p align="center">
+  A custom Lovelace card for <strong>Home Assistant</strong> to control an Aqara pet feeder (and compatible Zigbee feeders) via <a href="https://www.zigbee2mqtt.io/">Zigbee2MQTT</a>.
+</p>
+
+<p align="center">
+  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge" alt="HACS"></a>
+  <a href="https://github.com/badbadtrip/aqara-feeder-card/releases"><img src="https://img.shields.io/github/release/badbadtrip/aqara-feeder-card.svg?style=for-the-badge" alt="Release"></a>
+  <a href="https://github.com/badbadtrip/aqara-feeder-card/stargazers"><img src="https://img.shields.io/github/stars/badbadtrip/aqara-feeder-card.svg?style=for-the-badge" alt="Stars"></a>
+  <a href="https://github.com/badbadtrip/aqara-feeder-card/issues"><img src="https://img.shields.io/github/issues/badbadtrip/aqara-feeder-card.svg?style=for-the-badge" alt="Issues"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT"></a>
+</p>
 
 ---
 
-**[`Installation`](#installation)** **[`Configuration`](#configuration-reference)** **[`Template sensors`](#️-required-template-sensors)** **[`Full example`](#full-yaml-example)** **[`Contributing`](#contributing)**
+<p align="center">
+  <a href="#installation">Installation</a> &bull;
+  <a href="#configuration-reference">Configuration</a> &bull;
+  <a href="#️-required-template-sensors">Template sensors</a> &bull;
+  <a href="#full-yaml-example">Full example</a> &bull;
+  <a href="#troubleshooting">Troubleshooting</a> &bull;
+  <a href="#contributing">Contributing</a>
+</p>
 
 ---
 
@@ -363,9 +378,87 @@ zigbee2mqtt/Feeder/set
 
 ---
 
+## Troubleshooting
+
+<details>
+<summary><b>Card doesn't appear in the card picker</b></summary>
+
+<br>
+
+1. Make sure the resource is registered: **Settings → Dashboards → Resources** — you should see `/local/aqara-feeder-card.js` with type **JavaScript module**.
+2. Do a hard reload of the browser (`Ctrl+Shift+R` / `Cmd+Shift+R`).
+3. Clear browser cache and try again.
+
+</details>
+
+<details>
+<summary><b>Stats bar shows 0 / unknown</b></summary>
+
+<br>
+
+The stats bar requires all three template sensors to exist and have valid states. Check:
+
+- `sensor.feeder_portions_per_day` — must be created via `history_stats` or the trigger-based template.
+- `sensor.feeder_weight_per_day` — depends on `sensor.feeder_portions_per_day` and `number.feeder_portion_weight`. If either is `unknown`, the result will be `0`.
+- After adding or changing `configuration.yaml`, use **Developer Tools → YAML → Reload All YAML**.
+
+</details>
+
+<details>
+<summary><b>Schedule is not sent to the feeder</b></summary>
+
+<br>
+
+- Check that `topic` in your card config matches the MQTT set topic exactly: `zigbee2mqtt/<friendly_name>/set`.
+- Open Zigbee2MQTT → **Devices** → your feeder → **Exposes** — the `schedule` field should appear there.
+- Go to **Developer Tools → MQTT** and manually publish a test message to the topic to verify the broker is reachable.
+
+</details>
+
+<details>
+<summary><b>Feeder shows as offline</b></summary>
+
+<br>
+
+- The online/offline state comes from the Zigbee2MQTT availability topic. Check that **Availability** is enabled in Z2M settings (`availability: true` in `configuration.yaml`).
+- If the feeder was recently paired, try restarting Zigbee2MQTT.
+
+</details>
+
+<details>
+<summary><b>Schedule pretty sensor shows "unavailable"</b></summary>
+
+<br>
+
+The regex in `sensor.feeder_schedule_pretty` parses the raw JSON from `sensor.feeder_schedule`. If the feeder returns a slightly different format, the regex may not match. Open **Developer Tools → States**, find `sensor.feeder_schedule`, and compare its state value to the expected format: `[{'hour': 8, 'minute': 0, 'size': 2}, ...]`.
+
+</details>
+
+---
+
 ## Contributing
 
-Issues and pull requests are welcome. Please open an issue before starting large changes.
+Issues and pull requests are welcome.
+
+**Before opening a PR:**
+1. Open an issue first to discuss the change — this avoids wasted effort on PRs that won't be merged.
+2. Test your changes against a real feeder or a mocked MQTT device.
+3. If you're changing the card UI, include a screenshot in the PR description.
+
+**Local development:**
+
+```bash
+# Clone the repo
+git clone https://github.com/badbadtrip/aqara-feeder-card.git
+cd aqara-feeder-card
+
+# Copy the card file to your HA config www folder
+cp aqara-feeder-card.js /path/to/homeassistant/config/www/
+
+# After editing, reload the resource in HA and hard-refresh the browser
+```
+
+There is no build step — the card is a single vanilla JS file.
 
 [![GitHub](https://img.shields.io/badge/GitHub-Issues-green?logo=github&style=for-the-badge)](https://github.com/badbadtrip/aqara-feeder-card/issues)
 
