@@ -133,6 +133,9 @@ topic: zigbee2mqtt/Feeder/set
 | `label_portions_today` | `Portions today` |
 | `label_grams_today` | `Grams today` |
 | `label_per_portion` | `Per portion` |
+| `label_status_passed` | `Passed` |
+| `label_status_next` | `Next` |
+| `label_status_pending` | `Pending` |
 
 </details>
 
@@ -343,6 +346,9 @@ label_settings: Settings
 label_portions_today: Portions today
 label_grams_today: Grams today
 label_per_portion: Per portion
+label_status_passed: Passed
+label_status_next: Next
+label_status_pending: Pending
 entity_schedule: sensor.feeder_schedule
 entity_schedule_pretty: sensor.feeder_schedule_pretty
 entity_portions_day: sensor.feeder_portions_per_day

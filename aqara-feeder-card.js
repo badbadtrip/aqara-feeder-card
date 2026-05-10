@@ -1,38 +1,26 @@
-// Aqara Feeder Card - custom Lovelace card for Home Assistant
-// Dynamic schedules, sends directly via MQTT to zigbee2mqtt
-// Version: 1.0.4
-
 (function () {
   console.info(
-    `%c AQARA-FEEDER-CARD %c v1.0.4 `,
+    `%c AQARA-FEEDER-CARD %c v1.0.7 `,
     'color: white; background: #f5a623; font-weight: bold;',
     'color: #f5a623; background: white; font-weight: bold;'
   );
-
   if (customElements.get('aqara-feeder-card')) return;
-
-  // --- Config editor element ---
   class AqaraFeederCardEditor extends HTMLElement {
     constructor() {
       super();
       this._shadow = this.attachShadow({ mode: 'open' });
       this._config = {};
       this._hass = null;
-      // track which accordion sections are open
       this._open = { general: true, colors: false, labels: false, entities_schedule: false, entities_stats: false, entities_control: false, entities_device: false };
     }
-
     set hass(hass) {
       this._hass = hass;
-      // pass hass down to all entity pickers already in shadow
       this._shadow.querySelectorAll('ha-entity-picker').forEach(function(p) { p.hass = hass; });
     }
-
     setConfig(config) {
       this._config = Object.assign({}, config);
       this._render();
     }
-
     _cssColorToHex(color) {
       if (!color) return '#000000';
       color = color.trim();
@@ -49,11 +37,9 @@
       }
       return '#000000';
     }
-
     _fire(config) {
       this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: config }, bubbles: true, composed: true }));
     }
-
     _update(key, val) {
       var newCfg = Object.assign({}, this._config);
       if (val === '' || val === null || val === undefined) {
@@ -64,13 +50,11 @@
       this._config = newCfg;
       this._fire(newCfg);
     }
-
-    // sections definition
     _sections() {
       return [
         {
           key: 'general',
-          icon: '⚙️',
+          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
           title: 'General',
           fields: [
             { key: 'title',         label: 'Card title', type: 'text',   default: 'Feeder' },
@@ -83,7 +67,7 @@
         },
         {
           key: 'colors',
-          icon: '🎨',
+          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>',
           title: 'Colors',
           fields: [
             { key: 'color_accent',    label: 'Accent (tabs, buttons)',         type: 'color', default: 'rgb(255,218,120)' },
@@ -97,7 +81,7 @@
         },
         {
           key: 'labels',
-          icon: '✏️',
+          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
           title: 'Labels',
           fields: [
             { key: 'label_schedule',    label: 'Tab "Schedule"',            type: 'text', default: 'Schedule' },
@@ -105,12 +89,15 @@
             { key: 'label_settings',    label: 'Tab "Settings"',            type: 'text', default: 'Settings' },
             { key: 'label_portions_today', label: 'Stat: Portions today',   type: 'text', default: 'Portions today' },
             { key: 'label_grams_today', label: 'Stat: Grams today',         type: 'text', default: 'Grams today' },
-            { key: 'label_per_portion', label: 'Stat: Per portion',         type: 'text', default: 'Per portion' },
+            { key: 'label_per_portion',    label: 'Stat: Per portion',               type: 'text', default: 'Per portion' },
+            { key: 'label_status_passed',  label: 'Schedule status: Passed',          type: 'text', default: 'Passed' },
+            { key: 'label_status_next',    label: 'Schedule status: Next',            type: 'text', default: 'Next' },
+            { key: 'label_status_pending', label: 'Schedule status: Pending',         type: 'text', default: 'Pending' },
           ]
         },
         {
           key: 'entities_schedule',
-          icon: '📅',
+          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
           title: 'Entities — Schedule',
           fields: [
             {
@@ -131,7 +118,7 @@
         },
         {
           key: 'entities_stats',
-          icon: '📊',
+          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
           title: 'Entities — Statistics',
           fields: [
             {
@@ -166,7 +153,7 @@
         },
         {
           key: 'entities_control',
-          icon: '🎛️',
+          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
           title: 'Entities — Control',
           fields: [
             {
@@ -194,7 +181,7 @@
         },
         {
           key: 'entities_device',
-          icon: '🔧',
+          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
           title: 'Entities — Device',
           fields: [
             {
@@ -229,11 +216,9 @@
         },
       ];
     }
-
     _render() {
       var self = this;
       var cfg = this._config;
-
       var css =
         ':host{display:block;font-family:var(--primary-font-family,Roboto,sans-serif);}' +
         '*{box-sizing:border-box;}' +
@@ -241,7 +226,7 @@
         '.section-header{display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;' +
           'background:var(--secondary-background-color,rgba(255,255,255,.04));user-select:none;}' +
         '.section-header:hover{background:var(--primary-color-transparent,rgba(255,255,255,.08));}' +
-        '.section-icon{font-size:16px;flex-shrink:0;}' +
+        '.section-icon{flex-shrink:0;display:flex;align-items:center;color:var(--secondary-text-color,#888);}' +
         '.section-title{flex:1;font-size:13px;font-weight:600;color:var(--primary-text-color,#fff);}' +
         '.section-arrow{font-size:12px;color:var(--secondary-text-color,#888);transition:transform .2s;}' +
         '.section-arrow.open{transform:rotate(180deg);}' +
@@ -257,7 +242,7 @@
         '.note{display:flex;align-items:flex-start;gap:7px;margin-top:5px;padding:7px 10px;border-radius:8px;font-size:11px;line-height:1.5;}' +
         '.note.z2m{background:rgba(99,214,140,.08);border-left:3px solid rgba(99,214,140,.5);color:rgba(99,214,140,.9);}' +
         '.note.template{background:rgba(255,193,64,.08);border-left:3px solid rgba(255,193,64,.5);color:rgba(255,193,64,.9);}' +
-        '.note-icon{flex-shrink:0;font-size:13px;margin-top:1px;}' +
+        '.note-icon{flex-shrink:0;margin-top:1px;display:flex;align-items:center;}' +
         '.note code{background:rgba(255,255,255,.12);border-radius:3px;padding:1px 4px;font-family:monospace;font-size:10px;}' +
         '.color-row{display:flex;align-items:center;gap:8px;}' +
         '.color-swatch{width:36px;height:36px;border-radius:8px;border:1px solid var(--input-ink-color,rgba(255,255,255,.12));cursor:pointer;flex-shrink:0;padding:2px;background:transparent;}' +
@@ -265,33 +250,28 @@
         '.color-text:focus{border-color:var(--primary-color,#f5c842);}' +
         '.color-reset{width:28px;height:28px;border-radius:6px;border:none;background:rgba(255,255,255,.06);color:#888;font-size:12px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;}' +
         '.color-reset:hover{background:rgba(255,255,255,.12);color:#fff;}';
-
       var helpCss =
         '.help-block{background:var(--secondary-background-color,rgba(255,255,255,.04));' +
           'border:1px solid var(--divider-color,rgba(255,255,255,.12));border-radius:12px;' +
           'padding:14px 16px;margin-bottom:8px;}' +
         '.help-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;' +
           'color:var(--primary-text-color,#fff);margin-bottom:10px;}' +
-        '.help-title-icon{font-size:16px;}' +
+        '.help-title-icon{display:flex;align-items:center;color:var(--secondary-text-color,#888);}' +
         '.help-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;' +
           'border-bottom:1px solid var(--divider-color,rgba(255,255,255,.07));}' +
         '.help-row:last-child{border-bottom:none;padding-bottom:0;}' +
-        '.help-row-icon{font-size:18px;flex-shrink:0;width:24px;text-align:center;margin-top:1px;}' +
+        '.help-row-icon{flex-shrink:0;width:24px;display:flex;align-items:center;justify-content:center;margin-top:1px;color:var(--secondary-text-color,#888);}' +
         '.help-row-body{}' +
         '.help-row-label{font-size:12px;font-weight:600;color:var(--primary-text-color,#fff);margin-bottom:2px;}' +
         '.help-row-desc{font-size:11px;color:var(--secondary-text-color,#888);line-height:1.5;}' +
         'code{font-family:monospace;background:rgba(255,255,255,.1);border-radius:4px;padding:1px 5px;font-size:11px;}';
-
-      // build DOM directly instead of innerHTML to allow proper element creation
       this._shadow.innerHTML = '<style>' + css + helpCss + '</style>';
-
-      // Help block
       var helpEl = document.createElement('div');
       helpEl.className = 'help-block';
       helpEl.innerHTML =
-        '<div class="help-title"><span class="help-title-icon">ℹ️</span>How to configure the card</div>' +
+        '<div class="help-title"><span class="help-title-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>How to configure the card</div>' +
         '<div class="help-row">' +
-          '<div class="help-row-icon">📡</div>' +
+          '<div class="help-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg></div>' +
           '<div class="help-row-body">' +
             '<div class="help-row-label">MQTT topic (set)</div>' +
             '<div class="help-row-desc">' +
@@ -304,7 +284,7 @@
           '</div>' +
         '</div>' +
         '<div class="help-row">' +
-          '<div class="help-row-icon">🔗</div>' +
+          '<div class="help-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>' +
           '<div class="help-row-body">' +
             '<div class="help-row-label">Device entity IDs</div>' +
             '<div class="help-row-desc">' +
@@ -314,7 +294,7 @@
           '</div>' +
         '</div>' +
         '<div class="help-row">' +
-          '<div class="help-row-icon">🔌</div>' +
+          '<div class="help-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(99,214,140,.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 7V2"/><path d="M15 7V2"/><rect x="6" y="7" width="12" height="8" rx="1"/><path d="M9 22v-5h6v5"/></svg></div>' +
           '<div class="help-row-body">' +
             '<div class="help-row-label" style="color:rgba(99,214,140,.9);">Green note — entity already exists</div>' +
             '<div class="help-row-desc">' +
@@ -323,7 +303,7 @@
           '</div>' +
         '</div>' +
         '<div class="help-row">' +
-          '<div class="help-row-icon">📝</div>' +
+          '<div class="help-row-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,193,64,.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>' +
           '<div class="help-row-body">' +
             '<div class="help-row-label" style="color:rgba(255,193,64,.9);">Yellow note — must be added manually</div>' +
             '<div class="help-row-desc">' +
@@ -334,23 +314,18 @@
           '</div>' +
         '</div>';
       this._shadow.appendChild(helpEl);
-
       this._sections().forEach(function(section) {
         var isOpen = !!self._open[section.key];
-
         var sectionEl = document.createElement('div');
         sectionEl.className = 'section';
-
         var header = document.createElement('div');
         header.className = 'section-header';
         header.innerHTML =
           '<span class="section-icon">' + section.icon + '</span>' +
           '<span class="section-title">' + section.title + '</span>' +
           '<span class="section-arrow' + (isOpen ? ' open' : '') + '">▼</span>';
-
         var body = document.createElement('div');
         body.className = 'section-body' + (isOpen ? ' open' : '');
-
         header.addEventListener('click', function() {
           self._open[section.key] = !self._open[section.key];
           var arrow = header.querySelector('.section-arrow');
@@ -362,39 +337,31 @@
             arrow.classList.remove('open');
           }
         });
-
         section.fields.forEach(function(f) {
           var wrapper = document.createElement('div');
-
           var lbl = document.createElement('div');
           lbl.className = 'field-label';
           lbl.textContent = f.label;
           wrapper.appendChild(lbl);
-
           var val = cfg[f.key] !== undefined ? cfg[f.key] : f.default;
-
           if (f.type === 'color') {
             var colorRow = document.createElement('div');
             colorRow.className = 'color-row';
-
             var swatch = document.createElement('input');
             swatch.type = 'color';
             swatch.className = 'color-swatch';
             swatch.value = self._cssColorToHex(val || f.default);
             swatch.title = 'Pick color';
-
             var textInput = document.createElement('input');
             textInput.type = 'text';
             textInput.className = 'color-text';
             textInput.value = val || f.default;
             textInput.placeholder = f.default;
             textInput.spellcheck = false;
-
             var resetBtn = document.createElement('button');
             resetBtn.className = 'color-reset';
             resetBtn.title = 'Reset to default';
             resetBtn.textContent = '↺';
-
             (function(fKey, fDefault, sw, txt) {
               sw.addEventListener('input', function() {
                 txt.value = sw.value;
@@ -413,7 +380,6 @@
                 self._update(fKey, fDefault);
               });
             })(f.key, f.default, swatch, textInput);
-
             colorRow.appendChild(swatch);
             colorRow.appendChild(textInput);
             colorRow.appendChild(resetBtn);
@@ -455,28 +421,24 @@
             });
             wrapper.appendChild(inp);
           }
-
           if (f.note) {
             var noteEl = document.createElement('div');
             noteEl.className = 'note ' + f.note.type;
-            var icon = f.note.type === 'z2m' ? '🔌' : '📝';
+            var icon = f.note.type === 'z2m'
+              ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 7V2"/><path d="M15 7V2"/><rect x="6" y="7" width="12" height="8" rx="1"/><path d="M9 22v-5h6v5"/></svg>'
+              : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
             noteEl.innerHTML = '<span class="note-icon">' + icon + '</span><span>' + f.note.text + '</span>';
             wrapper.appendChild(noteEl);
           }
-
           body.appendChild(wrapper);
         });
-
         sectionEl.appendChild(header);
         sectionEl.appendChild(body);
         self._shadow.appendChild(sectionEl);
       });
     }
   }
-
   customElements.define('aqara-feeder-card-editor', AqaraFeederCardEditor);
-
-  // --- Main card element ---
   class AqaraFeederCard extends HTMLElement {
     constructor() {
       super();
@@ -488,12 +450,11 @@
       this._timer = null;
       this._schedules = [];
       this._isLoading = false;
+      this._lastSent = null;
     }
-
     static getConfigElement() {
       return document.createElement('aqara-feeder-card-editor');
     }
-
     static getStubConfig() {
       return {
         title: 'Feeder',
@@ -501,14 +462,15 @@
         topic: 'zigbee2mqtt/Feeder/set',
         max_schedules: 6,
         vibration_enabled: true,
-        // labels
         label_schedule:       'Schedule',
         label_feed:           'Feed now',
         label_settings:       'Settings',
-        label_portions_today: 'Portions today',
-        label_grams_today:    'Grams today',
-        label_per_portion:    'Per portion',
-        // colors
+        label_portions_today:  'Portions today',
+        label_grams_today:     'Grams today',
+        label_per_portion:     'Per portion',
+        label_status_passed:   'Passed',
+        label_status_next:     'Next',
+        label_status_pending:  'Pending',
         color_accent:     'rgb(255,218,120)',
         color_positive:   'rgb(206,245,149)',
         color_danger:     'rgb(255,145,138)',
@@ -516,7 +478,6 @@
         color_card_bg:    '#111318',
         color_block_bg:   '#1c1f27',
         color_block_bg2:  '#262a35',
-        // entities
         entity_schedule:         'sensor.feeder_schedule',
         entity_schedule_pretty:  'sensor.feeder_schedule_pretty',
         entity_portions_day:     'sensor.feeder_portions_per_day',
@@ -532,43 +493,33 @@
         entity_update:           'update.feeder',
       };
     }
-
     setConfig(config) {
       var defaults = AqaraFeederCard.getStubConfig();
       this._config = Object.assign({}, defaults, config);
       this._built = false;
-      // don't reset this._schedules here — let it persist across config updates
       if (this._hass) this._render();
     }
-
     set hass(hass) {
       this._hass = hass;
       if (!this._built) { this._render(); return; }
       if (this._timer) return;
       this._timer = setTimeout(function() { this._timer = null; this._updateDynamic(); }.bind(this), 300);
     }
-
     getCardSize() { return 5; }
-
-    // Helpers that use configurable entity IDs and labels
     _e(key) { return this._config[key] || ''; }
-
     _lbl(key, fallback) {
       var v = this._config[key];
       return (v !== undefined && v !== '') ? v : fallback;
     }
-
     _state(id, fallback) {
       fallback = fallback !== undefined ? fallback : 'unavailable';
       return this._hass && id && this._hass.states[id] ? this._hass.states[id].state : fallback;
     }
-
     _num(id, fallback) {
       fallback = fallback !== undefined ? fallback : 0;
       var v = parseFloat(this._state(id, String(fallback)));
       return isNaN(v) ? fallback : v;
     }
-
     _getActualSchedule() {
       var raw = this._state(this._e('entity_schedule'), '[]');
       try {
@@ -576,36 +527,33 @@
         return JSON.parse(json);
       } catch(e) { return []; }
     }
-
     _getSchedules() {
       var raw = this._state(this._e('entity_schedule'), null);
       if (raw === null || raw === 'unavailable' || raw === 'unknown') {
         return null;
       }
-      var actual = this._getActualSchedule();
-      if (actual.length > 0) {
-        // sync local copy with sensor data
-        this._schedules = actual.map(function(a) {
-          return { hour: a.hour, minute: a.minute, size: a.size };
-        });
-        return this._schedules;
+      if (this._schedules.length === 0 && !this._lastSent) {
+        var actual = this._getActualSchedule();
+        if (actual.length > 0) {
+          this._schedules = actual.map(function(a) {
+            return { hour: a.hour, minute: a.minute, size: a.size };
+          });
+        }
       }
       return this._schedules;
     }
-
     _pad(n) { return String(Math.round(n)).padStart(2, '0'); }
-
     _sendSchedule() {
-      var schedules = this._getSchedules();
-      if (schedules === null || schedules.length === 0) return;
+      var schedules = this._schedules;
+      if (!schedules || schedules.length === 0) return;
       var payload = {
         schedule: schedules.map(function(s) {
           return { days: 'everyday', hour: Math.round(s.hour), minute: Math.round(s.minute), size: Math.round(s.size) };
         })
       };
+      this._lastSent = Date.now();
       this._hass.callService('mqtt', 'publish', { topic: this._config.topic, payload: JSON.stringify(payload) });
     }
-
     _feedNow(size) {
       var servingEntity = this._e('entity_serving_size');
       if (servingEntity && this._hass.states[servingEntity]) {
@@ -613,7 +561,6 @@
       }
       this._hass.callService('mqtt', 'publish', { topic: this._config.topic, payload: JSON.stringify({ feed: 'START' }) });
     }
-
     _showFeedSuccess(btn) {
       var G = 'rgb(206,245,149)';
       var origText = btn ? btn.textContent : null;
@@ -631,7 +578,6 @@
         }, 2000);
       }
     }
-
     _showSent() {
       var badges = this._shadow.querySelector('#hdr-badges');
       if (!badges) return;
@@ -646,46 +592,37 @@
         if (sent.parentNode) sent.parentNode.removeChild(sent);
       }, 3000);
     }
-
     _showConfirmation(size, onConfirm) {
       var self = this;
       var portionWeight = parseFloat(this._state(this._e('entity_portion_weight'), '5')) || 5;
       var grams = Math.round(size * portionWeight);
-
       var existing = this._shadow.querySelector('.popup-overlay');
       if (existing) existing.remove();
-
       var overlay = document.createElement('div');
       overlay.className = 'popup-overlay';
       overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
-
       var popup = document.createElement('div');
       popup.className = 'popup';
       popup.innerHTML =
-        '<div class="popup-title">Are you sure?</div>' +
-        '<button class="popup-close" aria-label="Close">✕</button>' +
+        '<div class="popup-title">Confirm feeding</div>' +
+        '<button class="popup-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
         '<div style="text-align:center;font-size:13px;color:#969aa6;margin-bottom:20px;">' +
           'Will dispense <strong style="color:#fff;">' + size + ' por.</strong> (~' + grams + 'g)' +
         '</div>' +
         '<button class="popup-save" id="confirm-feed-btn" style="background:rgb(206,245,149);color:#000;">Feed</button>';
-
       overlay.appendChild(popup);
       this._shadow.querySelector('.card').appendChild(overlay);
-
       popup.querySelector('.popup-close').addEventListener('click', function() { overlay.remove(); });
       popup.querySelector('#confirm-feed-btn').addEventListener('click', function() {
         overlay.remove();
         onConfirm();
       });
     }
-
     _vibrate(pattern) {
-      // haptic feedback via navigator.vibrate if available
       if (this._config.vibration_enabled !== false && navigator.vibrate) {
         navigator.vibrate(pattern || 10);
       }
     }
-
     _render() {
       this._built = true;
       this._isLoading = false;
@@ -697,9 +634,8 @@
       var BG  = cfg.color_card_bg   || '#111318';
       var BG1 = cfg.color_block_bg  || '#1c1f27';
       var BG2 = cfg.color_block_bg2 || '#262a35';
-
       var css =
-        ':host{display:block;font-family:Roboto,sans-serif;}' +
+        ':host{display:block;font-family:var(--primary-font-family,Roboto,sans-serif);}' +
         '*{box-sizing:border-box;}' +
         '.card{background:' + BG + ';border-radius:24px;overflow:hidden;color:#fff;position:relative;max-width:480px;}' +
         '.hdr{padding:20px 20px 16px;display:flex;align-items:center;gap:12px;}' +
@@ -713,7 +649,7 @@
         '.online-dot{width:10px;height:10px;border-radius:50%;background:rgb(206,245,149);box-shadow:0 0 0 0 rgba(206,245,149,.5);animation:pulse 2s infinite;}' +
         '.offline-dot{width:10px;height:10px;border-radius:50%;background:#535865;}' +
         '@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(206,245,149,.5)}70%{box-shadow:0 0 0 6px rgba(206,245,149,0)}100%{box-shadow:0 0 0 0 rgba(206,245,149,0)}}' +
-        '.badge{padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600;}' +
+        '.badge{padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600;}' +
         '.badge-mode{background:' + BG1 + ';color:#969aa6;}' +
         '.badge-error{background:rgba(255,145,138,.2);color:' + R + ';}' +
         '.badge-ok{background:rgba(206,245,149,.15);color:' + G + ';}' +
@@ -721,17 +657,17 @@
         '.stat{background:' + BG1 + ';border-radius:16px;padding:12px 10px;display:flex;flex-direction:column;align-items:center;gap:3px;justify-content:space-between;}' +
         '.stat-val{font-size:20px;font-weight:500;color:#fff;line-height:1;}' +
         '.stat-val span{font-size:10px;opacity:.5;}' +
-        '.stat-lbl{font-size:9px;color:#636774;text-transform:uppercase;letter-spacing:.4px;text-align:center;}' +
+        '.stat-lbl{font-size:11px;color:#636774;text-transform:uppercase;letter-spacing:.4px;text-align:center;}' +
         '.stat-val.empty{opacity:.35;}' +
         '.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 20px 14px;}' +
-        '.tab-btn{padding:10px 4px 8px;border:1px solid ' + BG2 + ';border-radius:12px;background:' + BG1 + ';color:#636774;font-size:11px;font-weight:500;cursor:pointer;transition:all .2s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:5px;}' +
+        '.tab-btn{padding:10px 4px 8px;border:1px solid ' + BG2 + ';border-radius:12px;background:' + BG1 + ';color:#636774;font-size:11px;font-weight:500;cursor:pointer;transition:background .2s,border-color .2s,color .2s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:5px;}' +
         '.tab-btn.active{background:' + Y + ';color:#000;border-color:' + Y + ';box-shadow:0 4px 12px rgba(255,218,120,.3),0 2px 4px rgba(0,0,0,.4);}' +
         '.tab-btn:not(.active):hover{background:' + BG2 + ';border-color:' + BG2 + ';}' +
         '.tab-icon{width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.30);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1.5px rgba(255,255,255,.12),0 2px 4px rgba(0,0,0,.5);filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}' +
         '.tab-icon svg{width:14px;height:14px;fill:none;stroke:#969aa6;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}' +
         '.tab-btn.active .tab-icon{background:rgba(0,0,0,.20);box-shadow:0 0 0 1.5px rgba(0,0,0,.15),0 2px 4px rgba(0,0,0,.3);}' +
         '.tab-btn.active .tab-icon svg{stroke:#000;}' +
-        '.tab-label{font-size:10px;font-weight:500;line-height:1;}' +
+        '.tab-label{font-size:11px;font-weight:500;line-height:1;}' +
         '.content{padding:0 20px 20px;}' +
         '.tab-pane{animation:fadeIn .2s ease;}' +
         '@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}' +
@@ -748,7 +684,7 @@
         '.sched-info{flex:1;}' +
         '.sched-portions{font-size:13px;color:#fff;}' +
         '.sched-grams{font-size:10px;color:#636774;margin-top:1px;}' +
-        '.sched-status{font-size:10px;padding:3px 8px;border-radius:20px;font-weight:600;}' +
+        '.sched-status{font-size:11px;padding:3px 8px;border-radius:20px;font-weight:600;}' +
         '.sched-status.done{background:rgba(255,218,120,.1);color:' + Y + ';}' +
         '.sched-status.next-s{background:rgba(206,245,149,.15);color:' + G + ';}' +
         '.sched-status.pending{background:' + BG2 + ';color:#535865;}' +
@@ -763,8 +699,7 @@
         '.apply-btn:hover{opacity:.85;}' +
         '.empty-state{text-align:center;padding:40px 16px;}' +
         '.empty-state.loading{padding:48px 16px;}' +
-        '.empty-state-icon{font-size:32px;margin-bottom:8px;}' +
-        '.empty-state.loading .empty-state-icon{font-size:48px;margin-bottom:16px;animation:bounce 2s ease-in-out infinite;will-change:transform;}' +
+        '.empty-state-icon{margin-bottom:8px;display:flex;justify-content:center;}' +
         '.empty-state-text{font-size:13px;color:#636774;line-height:1.5;}' +
         '.empty-state.loading .empty-state-text{font-size:12px;color:#535865;}' +
         '.loading-spinner{width:48px;height:48px;margin:0 auto 16px;position:relative;}' +
@@ -779,11 +714,11 @@
         '@keyframes dotPulse{0%,100%{opacity:0.3;transform:scale(1) translateZ(0)}50%{opacity:1;transform:scale(1.5) translateZ(0)}}' +
         '.feed-section-title{font-size:10px;color:#636774;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600;}' +
         '.quick-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}' +
-        '.quick-btn{background:' + BG1 + ';border:1px solid ' + BG2 + ';border-radius:14px;padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:all .2s;}' +
+        '.quick-btn{background:' + BG1 + ';border:1px solid ' + BG2 + ';border-radius:14px;padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:background .2s,border-color .2s;}' +
         '.quick-btn:hover{background:' + BG2 + ';border-color:' + Y + ';}' +
         '.quick-btn.fed{background:rgba(206,245,149,.15);border-color:' + G + ';}' +
         '.quick-btn-val{font-size:22px;font-weight:500;color:#fff;}' +
-        '.quick-btn-lbl{font-size:9px;color:#636774;text-transform:uppercase;}' +
+        '.quick-btn-lbl{font-size:11px;color:#636774;text-transform:uppercase;}' +
         '.custom-feed{background:' + BG1 + ';border-radius:16px;padding:14px;display:flex;align-items:center;gap:10px;margin-bottom:12px;}' +
         '.custom-label{font-size:12px;color:#969aa6;flex:1;}' +
         '.stepper{display:flex;align-items:center;gap:8px;}' +
@@ -805,7 +740,7 @@
         '.raw-details summary::-webkit-details-marker{display:none;}' +
         '.raw-details summary::after{content:"▸";transition:transform .2s;}' +
         '.raw-details[open] summary::after{content:"▾";}' +
-        '.raw-content{font-size:10px;color:#535865;word-break:break-all;margin-top:8px;}' +
+        '.raw-content{font-size:11px;color:#535865;word-break:break-all;margin-top:8px;}' +
         '.popup-overlay{position:absolute;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:10;}' +
         '.popup{background:' + BG1 + ';border-radius:20px;padding:24px 20px 20px;width:calc(100% - 40px);max-width:320px;position:relative;animation:popIn .2s ease;}' +
         '@keyframes popIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}' +
@@ -825,14 +760,20 @@
         '.size-sub{font-size:11px;color:#636774;text-align:center;margin-top:4px;}' +
         '.popup-save{width:100%;padding:13px;background:' + Y + ';color:#000;border:none;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;margin-top:20px;transition:opacity .2s;}' +
         '.popup-save:hover{opacity:.85;}' +
-        '';
-
+        '.tab-btn:focus-visible,.quick-btn:focus-visible,.step-btn:focus-visible,.size-step-btn:focus-visible,' +
+        '.sched-delete:focus-visible,.add-btn:focus-visible,.apply-btn:focus-visible,' +
+        '.feed-now-btn:focus-visible,.popup-close:focus-visible,.popup-save:focus-visible,' +
+        '.color-reset:focus-visible{outline:2px solid ' + Y + ';outline-offset:2px;}' +
+        '@media(prefers-reduced-motion:reduce){' +
+          '.online-dot,.loading-ring,.loading-dot{animation:none!important;}' +
+          '.tab-pane{animation:none!important;}' +
+          '.popup{animation:none!important;}' +
+        '}';
       var icon = this._config.icon || '';
       var iconHtml;
       if (icon && (icon.startsWith('http') || icon.startsWith('data:'))) {
         iconHtml = '<img src="' + icon + '" alt="">';
       } else if (icon && icon.startsWith('/config/www/')) {
-        // convert /config/www/... path to /local/... for Home Assistant
         var localPath = icon.replace('/config/www/', '/local/');
         iconHtml = '<img src="' + localPath + '" alt="">';
       } else if (icon && icon.startsWith('/')) {
@@ -840,7 +781,6 @@
       } else {
         iconHtml = icon || '🐱';
       }
-
       var html =
         '<div class="card">' +
           '<div class="hdr">' +
@@ -863,21 +803,18 @@
             '<div id="tab-info" class="tab-pane" style="display:none"></div>' +
           '</div>' +
         '</div>';
-
       var styleEl = document.createElement('style');
       styleEl.textContent = css;
       this._shadow.innerHTML = '';
       this._shadow.appendChild(styleEl);
-
       var wrapper = document.createElement('div');
       wrapper.innerHTML = html;
       this._shadow.appendChild(wrapper.firstChild);
-
       var self = this;
       this._shadow.querySelectorAll('.tab-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
           self._vibrate(10);
-          self._isLoading = false; // reset loading state on tab switch
+          self._isLoading = false; 
           self._shadow.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
           btn.classList.add('active');
           self._activeTab = btn.dataset.tab;
@@ -888,19 +825,15 @@
           self._renderTab(self._activeTab);
         });
       });
-
       this._updateDynamic();
     }
-
     _updateDynamic() {
       if (!this._hass) return;
       this._renderHeader();
       this._renderStats();
-      // skip tab re-render while loading to preserve animations and prevent flicker
       if (this._isLoading) return;
       this._renderTab(this._activeTab);
     }
-
     _renderHeader() {
       var sub = this._shadow.querySelector('#hdr-sub');
       var badges = this._shadow.querySelector('#hdr-badges');
@@ -917,7 +850,6 @@
         ? dotHtml + '<span class="badge badge-error">Error</span>'
         : dotHtml;
     }
-
     _renderStats() {
       var el = this._shadow.querySelector('#stats-row');
       if (!el) return;
@@ -932,7 +864,6 @@
         '<div class="stat"><div class="' + gramsClass + '">' + grams + '<span>g</span></div><div class="stat-lbl">' + this._lbl('label_grams_today', 'Grams today') + '</div></div>' +
         '<div class="stat"><div class="stat-val">' + weight + '<span>g</span></div><div class="stat-lbl">' + this._lbl('label_per_portion', 'Per portion') + '</div></div>';
     }
-
     _renderTab(tab) {
       var el = this._shadow.querySelector('#tab-' + tab);
       if (!el) return;
@@ -940,7 +871,6 @@
       else if (tab === 'feed') this._renderFeedTab(el);
       else if (tab === 'info') this._renderInfoTab(el);
     }
-
     _renderScheduleTab(container) {
       if (!container) return;
       var self = this;
@@ -948,7 +878,6 @@
       var nowMin = now.getHours() * 60 + now.getMinutes();
       var schedules = this._getSchedules();
       var maxSchedules = this._config.max_schedules || 6;
-
       if (schedules === null) {
         this._isLoading = true;
         container.innerHTML =
@@ -956,7 +885,6 @@
             '<div class="loading-spinner">' +
               '<div class="loading-ring"></div>' +
             '</div>' +
-            '<div class="empty-state-icon">📡</div>' +
             '<div class="empty-state-text"><strong>Waiting for Home Assistant</strong><br>Fetching schedule data from the feeder...</div>' +
             '<div class="loading-dots">' +
               '<div class="loading-dot"></div>' +
@@ -966,13 +894,11 @@
           '</div>';
         return;
       }
-
       this._isLoading = false;
-
       if (schedules.length === 0) {
         container.innerHTML =
           '<div class="empty-state">' +
-            '<div class="empty-state-icon">📅</div>' +
+            '<div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#535865" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>' +
             '<div class="empty-state-text"><strong>No feedings scheduled</strong><br>Add your first feeding time below.</div>' +
           '</div>' +
           '<div class="sched-actions">' +
@@ -991,13 +917,11 @@
         });
         return;
       }
-
-      // keep track of original indices after sorting
       var indexed = schedules.map(function(s, i) { return { s: s, i: i }; });
       indexed.sort(function(a, b) {
         return (a.s.hour * 60 + a.s.minute) - (b.s.hour * 60 + b.s.minute);
       });
-
+      var sortedSchedules = indexed.map(function(item) { return item.s; });
       var nextIdx = -1;
       var minDiff = Infinity;
       indexed.forEach(function(item, idx) {
@@ -1005,22 +929,20 @@
         var diff = sm > nowMin ? sm - nowMin : sm + 1440 - nowMin;
         if (diff < minDiff) { minDiff = diff; nextIdx = idx; }
       });
-
       var html = '<div class="schedule-list" id="sched-list">';
       indexed.forEach(function(item, idx) {
         var s = item.s;
-        var origIdx = item.i;
         var sm = s.hour * 60 + s.minute;
         var passed = sm <= nowMin;
         var isNext = idx === nextIdx;
         var statusClass = passed ? 'done' : isNext ? 'next-s' : 'pending';
-        var statusText = passed ? 'Passed' : isNext ? 'Next' : 'Pending';
+        var statusText = passed ? self._lbl('label_status_passed','Passed') : isNext ? self._lbl('label_status_next','Next') : self._lbl('label_status_pending','Pending');
         var dotClass = passed ? 'passed' : isNext ? 'next-d' : '';
         var timeClass = passed ? 'passed' : '';
         var portionWeight = parseFloat(self._state(self._e('entity_portion_weight'), '5')) || 5;
         var grams = Math.round(s.size * portionWeight);
         html +=
-          '<div class="sched-item" data-slot="' + origIdx + '" title="Tap to edit">' +
+          '<div class="sched-item" data-slot="' + idx + '" title="Tap to edit">' +
             '<div class="sched-dot ' + dotClass + '"></div>' +
             '<div class="sched-time ' + timeClass + '">' + self._pad(s.hour) + ':' + self._pad(s.minute) + '</div>' +
             '<div class="sched-info">' +
@@ -1028,39 +950,34 @@
               '<div class="sched-grams">~' + grams + 'g</div>' +
             '</div>' +
             '<span class="sched-status ' + statusClass + '">' + statusText + '</span>' +
-            '<span class="sched-edit-hint">✎</span>' +
-            '<button class="sched-delete" data-del="' + origIdx + '" title="Remove"><div class="sched-delete-inner">✕</div></button>' +
+            '<span class="sched-edit-hint"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>' +
+            '<button class="sched-delete" data-del="' + idx + '" title="Remove"><div class="sched-delete-inner"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></button>' +
           '</div>';
       });
       html += '</div>';
-
       html += '<div class="sched-actions">';
       if (schedules.length < maxSchedules) {
         html += '<button class="add-btn" id="add-slot-btn">+ Add feeding</button>';
       }
       html += '<button class="apply-btn" id="apply-btn">Send to feeder</button>';
       html += '</div>';
-
       container.innerHTML = html;
-
       container.querySelectorAll('.sched-item').forEach(function(el) {
         el.addEventListener('click', function(e) {
           if (e.target.classList.contains('sched-delete') || e.target.classList.contains('sched-delete-inner')) return;
           self._vibrate(10);
-          self._openEditPopup(parseInt(el.dataset.slot));
+          self._openEditPopup(parseInt(el.dataset.slot), sortedSchedules);
         });
       });
-
       container.querySelectorAll('.sched-delete').forEach(function(btn) {
         btn.addEventListener('click', function(e) {
           e.stopPropagation();
           self._vibrate(20);
-          var idx = parseInt(btn.dataset.del);
-          self._schedules.splice(idx, 1);
+          var delIdx = parseInt(btn.dataset.del);
+          self._schedules = sortedSchedules.filter(function(_, i) { return i !== delIdx; });
           self._renderTab('schedule');
         });
       });
-
       var addBtn = container.querySelector('#add-slot-btn');
       if (addBtn) {
         addBtn.addEventListener('click', function() {
@@ -1072,7 +989,6 @@
           setTimeout(function() { self._openEditPopup(self._schedules.length - 1); }, 50);
         });
       }
-
       var applyBtn = container.querySelector('#apply-btn');
       if (applyBtn) {
         applyBtn.addEventListener('click', function() {
@@ -1081,26 +997,23 @@
         });
       }
     }
-
-    _openEditPopup(slot) {
+    _openEditPopup(slot, snapshot) {
       var self = this;
       var existing = this._shadow.querySelector('.popup-overlay');
       if (existing) existing.remove();
-
-      var s = this._schedules[slot];
+      var source = snapshot || this._schedules;
+      var s = source[slot];
       if (!s) return;
       var hour = s.hour, minute = s.minute, size = s.size;
       var portionWeight = parseFloat(this._state(this._e('entity_portion_weight'), '5')) || 5;
-
       var overlay = document.createElement('div');
       overlay.className = 'popup-overlay';
       overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
-
       var popup = document.createElement('div');
       popup.className = 'popup';
       popup.innerHTML =
         '<div class="popup-title">Feeding ' + (slot + 1) + '</div>' +
-        '<button class="popup-close" aria-label="Close">✕</button>' +
+        '<button class="popup-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
         '<div class="popup-row">' +
           '<div class="popup-row-label">Time</div>' +
           '<div class="time-inputs">' +
@@ -1118,15 +1031,11 @@
           '</div>' +
         '</div>' +
         '<button class="popup-save" id="p-save">Save and send</button>';
-
       overlay.appendChild(popup);
       this._shadow.querySelector('.card').appendChild(overlay);
-
       var sizeEl = popup.querySelector('#p-size');
       var gramsEl = popup.querySelector('#p-grams');
-
       popup.querySelector('.popup-close').addEventListener('click', function() { overlay.remove(); });
-
       popup.querySelector('#p-minus').addEventListener('click', function() {
         self._vibrate(5);
         if (size > 1) { size--; sizeEl.textContent = size; gramsEl.textContent = '~' + Math.round(size*portionWeight) + 'g'; }
@@ -1135,23 +1044,22 @@
         self._vibrate(5);
         if (size < 10) { size++; sizeEl.textContent = size; gramsEl.textContent = '~' + Math.round(size*portionWeight) + 'g'; }
       });
-
       popup.querySelector('#p-save').addEventListener('click', function() {
         self._vibrate([10, 20, 10]);
         hour = parseInt(popup.querySelector('#p-hour').value, 10);
         minute = parseInt(popup.querySelector('#p-min').value, 10);
         if (isNaN(hour) || hour < 0 || hour > 23) hour = 0;
         if (isNaN(minute) || minute < 0 || minute > 59) minute = 0;
-
-        self._schedules[slot] = { hour: hour, minute: minute, size: size };
+        var base = snapshot ? snapshot.slice() : self._schedules.slice();
+        base[slot] = { hour: hour, minute: minute, size: size };
+        self._schedules = base;
+        self._lastSent = Date.now();
         self._sendSchedule();
-
         overlay.remove();
         self._showSent();
         setTimeout(function() { self._renderTab('schedule'); }, 400);
       });
     }
-
     _renderFeedTab(container) {
       if (!container) return;
       var self = this;
@@ -1174,19 +1082,15 @@
           '</div>' +
         '</div>' +
         '<button class="feed-now-btn" id="feed-now-btn">Feed now (1 por. ~' + Math.round(portionWeight) + 'g)</button>';
-
       container.innerHTML = html;
-
       var valEl = container.querySelector('#c-val');
       var btn = container.querySelector('#feed-now-btn');
-
       container.querySelector('#c-minus').addEventListener('click', function() {
         if (customSize > 1) { customSize--; valEl.textContent = customSize; btn.textContent = 'Feed now (' + customSize + ' por. ~' + Math.round(customSize*portionWeight) + 'g)'; }
       });
       container.querySelector('#c-plus').addEventListener('click', function() {
         if (customSize < 10) { customSize++; valEl.textContent = customSize; btn.textContent = 'Feed now (' + customSize + ' por. ~' + Math.round(customSize*portionWeight) + 'g)'; }
       });
-
       container.querySelectorAll('.quick-btn').forEach(function(b) {
         b.addEventListener('click', function() {
           self._vibrate(15);
@@ -1203,7 +1107,6 @@
           });
         });
       });
-
       btn.addEventListener('click', function() {
         self._vibrate(15);
         self._showConfirmation(customSize, function() {
@@ -1212,7 +1115,6 @@
         });
       });
     }
-
     _renderInfoTab(container) {
       if (!container) return;
       var self = this;
@@ -1224,9 +1126,7 @@
       var updateEntity = this._e('entity_update');
       var fw = (this._hass && updateEntity && this._hass.states[updateEntity] && this._hass.states[updateEntity].attributes.installed_version) || '-';
       var actual = this._state(this._e('entity_schedule'), '-');
-
       var rawOpen = container.querySelector('.raw-details') && container.querySelector('.raw-details').open;
-
       container.innerHTML =
         '<div class="info-grid">' +
           '<div class="info-row"><div class="info-row-label">Mode</div><div class="info-row-val">' + (mode === 'schedule' ? 'Auto schedule' : 'Manual') + '</div></div>' +
@@ -1239,11 +1139,10 @@
             '</div></div>' +
           '<div class="info-row"><div class="info-row-label">Last portion size</div><div class="info-row-val">' + feedingSize + ' por.</div></div>' +
           '<div class="info-row"><div class="info-row-label">Child lock</div><div class="toggle ' + (lock?'on':'') + '" id="toggle-lock" role="switch" aria-checked="' + lock + '"><div class="toggle-thumb"></div></div></div>' +
-          '<div class="info-row"><div class="info-row-label">Disable LED at night</div><div class="toggle ' + (led?'on':'') + '" id="toggle-led" role="switch" aria-checked="' + led + '"><div class="toggle-thumb"></div></div></div>' +
+          '<div class="info-row"><div class="info-row-label">LED indicator</div><div class="toggle ' + (led?'on':'') + '" id="toggle-led" role="switch" aria-checked="' + led + '"><div class="toggle-thumb"></div></div></div>' +
           '<div class="info-row"><div class="info-row-label">Firmware</div><div class="info-row-val">' + fw + '</div></div>' +
           '<details class="raw-details"' + (rawOpen ? ' open' : '') + '><summary>Feeder schedule (raw)</summary><div class="raw-content">' + actual + '</div></details>' +
         '</div>';
-
       var pw = parseFloat(portionWeight) || 5;
       var pwEl = container.querySelector('#pw-val');
       var pwEntity = this._e('entity_portion_weight');
@@ -1253,7 +1152,6 @@
       container.querySelector('#pw-plus').addEventListener('click', function() {
         if (pw < 20) { pw++; pwEl.textContent = pw; self._hass.callService('number', 'set_value', { entity_id: pwEntity, value: pw }); }
       });
-
       var vibrationToggle = container.querySelector('#toggle-vibration');
       if (vibrationToggle) {
         vibrationToggle.addEventListener('click', function() {
@@ -1263,7 +1161,6 @@
           self._vibrate(isOn ? [10, 20, 10] : null);
         });
       }
-
       var lockEntity = this._e('entity_child_lock');
       container.querySelector('#toggle-lock').addEventListener('click', function() {
         self._vibrate([10, 20, 10]);
@@ -1271,7 +1168,6 @@
         this.setAttribute('aria-checked', isOn);
         self._hass.callService('switch', isOn ? 'turn_on' : 'turn_off', { entity_id: lockEntity });
       });
-
       var ledEntity = this._e('entity_led');
       container.querySelector('#toggle-led').addEventListener('click', function() {
         self._vibrate([10, 20, 10]);
@@ -1281,9 +1177,7 @@
       });
     }
   }
-
   customElements.define('aqara-feeder-card', AqaraFeederCard);
-
   window.customCards = window.customCards || [];
   window.customCards.push({ type: 'aqara-feeder-card', name: 'Aqara Feeder Card', description: 'Aqara pet feeder via zigbee2mqtt' });
-})();
+})();
