@@ -1,6 +1,6 @@
 (function () {
   console.info(
-    `%c AQARA-FEEDER-CARD %c v1.1.0 `,
+    `%c AQARA-FEEDER-CARD %c v1.2.0 `,
     'color: white; background: #f5a623; font-weight: bold;',
     'color: #f5a623; background: white; font-weight: bold;'
   );
@@ -62,6 +62,8 @@
               note: { type: 'template', text: 'Emoji: just paste the character. Image: provide the full path <code>/config/www/images/your_icon.png</code>. For a 3D effect use a PNG with transparent background — the icon will "float" above the circle.' } },
             { key: 'topic',         label: 'MQTT topic (set)',    type: 'text',   default: 'zigbee2mqtt/Feeder/set' },
             { key: 'max_schedules', label: 'Max schedules',       type: 'number', default: 6 },
+            { key: 'quick_feed_default', label: 'Favourite quick portion', type: 'number', default: 2,
+              note: { type: 'template', text: 'Portion size highlighted as favourite in the Feed-now grid (gets accent background + star).' } },
             { key: 'vibration_enabled', label: 'Haptic feedback', type: 'checkbox', default: true },
             { key: 'mqtt_retain',   label: 'MQTT retain flag',    type: 'checkbox', default: false,
               note: { type: 'template', text: 'Adds <code>retain: true</code> to MQTT publishes so broker keeps last schedule across restarts.' } },
@@ -464,6 +466,7 @@
       this._undo = null;
       this._undoTimer = null;
       this._countdownTimer = null;
+      this._lastFeedSize = null;
     }
     disconnectedCallback() {
       if (this._timer) { clearTimeout(this._timer); this._timer = null; }
@@ -479,6 +482,8 @@
         icon: '🐱',
         topic: 'zigbee2mqtt/Feeder/set',
         max_schedules: 6,
+        quick_feed_sizes: [1, 2, 3, 5],
+        quick_feed_default: 2,
         vibration_enabled: true,
         mqtt_retain: false,
         label_schedule:       'Schedule',
@@ -598,6 +603,7 @@
         this._hass.callService('number', 'set_value', { entity_id: servingEntity, value: size });
       }
       this._mqttPublish({ feed: 'START' });
+      this._lastFeedSize = size;
     }
     _markPending() {
       this._pending = true;
@@ -838,12 +844,41 @@
         '@keyframes bounce{0%,100%{transform:translateY(0)}25%{transform:translateY(-6px)}75%{transform:translateY(-6px)}}' +
         '@keyframes dotPulse{0%,100%{opacity:0.3;transform:scale(1) translateZ(0)}50%{opacity:1;transform:scale(1.5) translateZ(0)}}' +
         '.feed-section-title{font-size:10px;color:#636774;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600;}' +
-        '.quick-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}' +
-        '.quick-btn{background:' + BG1 + ';border:1px solid ' + BG2 + ';border-radius:14px;padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:background .2s,border-color .2s;}' +
-        '.quick-btn:hover{background:' + BG2 + ';border-color:' + Y + ';}' +
-        '.quick-btn.fed{background:rgba(206,245,149,.15);border-color:' + G + ';}' +
-        '.quick-btn-val{font-size:22px;font-weight:500;color:#fff;}' +
-        '.quick-btn-lbl{font-size:11px;color:#636774;text-transform:uppercase;}' +
+        '.quick-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;}' +
+        '.quick-btns.sizes-3{grid-template-columns:repeat(3,1fr);}' +
+        '.quick-btns.sizes-2{grid-template-columns:repeat(2,1fr);}' +
+        '.quick-btn{position:relative;background:' + BG1 + ';border:1px solid ' + BG2 + ';border-radius:14px;padding:10px 6px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:background .2s,border-color .2s,transform .15s;color:#fff;font-family:inherit;overflow:hidden;}' +
+        '.quick-btn:hover{background:' + BG2 + ';border-color:' + Y + ';transform:translateY(-1px);}' +
+        '.quick-btn:active{transform:translateY(0);}' +
+        '.quick-pellets{display:flex;gap:3px;align-items:center;justify-content:center;height:10px;margin-bottom:2px;}' +
+        '.pellet{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.7;}' +
+        '.pellet-more{font-size:9px;font-weight:600;opacity:.7;margin-left:2px;}' +
+        '.quick-bowl{width:46px;height:26px;color:#535865;transition:color .2s;}' +
+        '.bowl-stroke{stroke:currentColor;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;}' +
+        '.bowl-rim{stroke:currentColor;stroke-width:1.6;stroke-linecap:round;opacity:.7;}' +
+        '.bowl-fill{fill:currentColor;opacity:.35;transition:fill .2s,opacity .2s;}' +
+        '.quick-btn.level-low{color:#969aa6;}' +
+        '.quick-btn.level-low .quick-pellets{color:' + Y + ';}' +
+        '.quick-btn.level-low .quick-bowl{color:' + Y + ';}' +
+        '.quick-btn.level-normal{color:#969aa6;}' +
+        '.quick-btn.level-normal .quick-pellets{color:' + G + ';}' +
+        '.quick-btn.level-normal .quick-bowl{color:' + G + ';}' +
+        '.quick-btn.level-high{color:#969aa6;}' +
+        '.quick-btn.level-high .quick-pellets{color:' + O + ';}' +
+        '.quick-btn.level-high .quick-bowl{color:' + O + ';}' +
+        '.quick-meta{display:flex;flex-direction:column;align-items:center;gap:0;margin-top:2px;}' +
+        '.quick-btn-val{font-size:18px;font-weight:600;color:#fff;line-height:1;}' +
+        '.quick-btn-lbl{font-size:10px;color:#636774;text-transform:uppercase;letter-spacing:.3px;margin-top:2px;}' +
+        '.quick-btn.favourite{background:linear-gradient(155deg,rgba(255,218,120,.18),' + BG1 + ' 80%);border-color:rgba(255,218,120,.5);box-shadow:0 0 0 1px rgba(255,218,120,.15),0 6px 14px rgba(0,0,0,.3);}' +
+        '.quick-btn.favourite .quick-btn-val{color:' + Y + ';}' +
+        '.quick-btn.favourite:hover{border-color:' + Y + ';background:linear-gradient(155deg,rgba(255,218,120,.28),' + BG2 + ' 80%);}' +
+        '.quick-fav{position:absolute;top:6px;right:6px;color:' + Y + ';display:flex;align-items:center;justify-content:center;}' +
+        '.quick-last-dot{position:absolute;top:8px;left:8px;width:6px;height:6px;border-radius:50%;background:' + G + ';box-shadow:0 0 0 2px ' + BG1 + ',0 0 6px ' + G + ';}' +
+        '.quick-btn.favourite .quick-last-dot{box-shadow:0 0 0 2px rgba(255,218,120,.15),0 0 6px ' + G + ';}' +
+        '.quick-fed-mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(206,245,149,.95);color:#000;font-weight:700;font-size:12px;border-radius:13px;opacity:0;pointer-events:none;transform:scale(.85);transition:opacity .15s,transform .15s;}' +
+        '.quick-btn.fed .quick-fed-mark{opacity:1;transform:scale(1);}' +
+        '.quick-btn.busy{opacity:.55;pointer-events:none;}' +
+        '@media(prefers-reduced-motion:reduce){.quick-btn,.quick-btn:hover{transition:none;transform:none;}.quick-fed-mark{transition:none;}}' +
         '.custom-feed{background:' + BG1 + ';border-radius:16px;padding:14px;display:flex;align-items:center;gap:10px;margin-bottom:12px;}' +
         '.custom-label{font-size:12px;color:#969aa6;flex:1;}' +
         '.stepper{display:flex;align-items:center;gap:8px;}' +
@@ -1500,12 +1535,56 @@
       if (!container) return;
       var self = this;
       var portionWeight = parseFloat(this._state(this._e('entity_portion_weight'), '5')) || 5;
-      var customSize = 1;
+      var sizes = Array.isArray(this._config.quick_feed_sizes) && this._config.quick_feed_sizes.length
+        ? this._config.quick_feed_sizes.slice()
+        : [1, 2, 3, 5];
+      sizes = sizes.map(function(n) { return parseInt(n, 10); }).filter(function(n) { return !isNaN(n) && n > 0 && n <= 10; });
+      if (!sizes.length) sizes = [1, 2, 3, 5];
+      var favourite = parseInt(this._config.quick_feed_default, 10);
+      if (isNaN(favourite)) favourite = 2;
+      var customSize = this._lastFeedSize || favourite;
+      var levelClass = function(n) {
+        if (n <= 2) return 'level-low';
+        if (n <= 4) return 'level-normal';
+        return 'level-high';
+      };
+      var pelletsHtml = function(n) {
+        var inner = '';
+        var max = Math.min(n, 6);
+        for (var i = 0; i < max; i++) inner += '<span class="pellet"></span>';
+        if (n > 6) inner += '<span class="pellet-more">+' + (n - 6) + '</span>';
+        return '<div class="quick-pellets" aria-hidden="true">' + inner + '</div>';
+      };
+      var bowlSvg = function(n) {
+        var maxFill = 6;
+        var fill = Math.min(n, maxFill) / maxFill;
+        var fillY = 18 - Math.round(fill * 12);
+        return '<svg class="quick-bowl" viewBox="0 0 36 22" aria-hidden="true">' +
+          '<defs><clipPath id="qbowl-clip-' + n + '"><path d="M3 5 L33 5 L29 19 Q18 21 7 19 Z"/></clipPath></defs>' +
+          '<path class="bowl-fill" d="M3 ' + fillY + ' L33 ' + fillY + ' L29 19 Q18 21 7 19 Z" clip-path="url(#qbowl-clip-' + n + ')"/>' +
+          '<path class="bowl-stroke" d="M3 5 L33 5 L29 19 Q18 21 7 19 Z" fill="none"/>' +
+          '<line class="bowl-rim" x1="1" y1="5" x2="35" y2="5"/>' +
+        '</svg>';
+      };
       var html =
         '<div class="feed-section-title">Quick feed</div>' +
-        '<div class="quick-btns">';
-      [1,2,3,4,5,6].forEach(function(n) {
-        html += '<div class="quick-btn" data-size="' + n + '"><div class="quick-btn-val">' + n + '</div><div class="quick-btn-lbl">~' + Math.round(n*portionWeight) + 'g</div></div>';
+        '<div class="quick-btns sizes-' + sizes.length + '">';
+      sizes.forEach(function(n) {
+        var classes = ['quick-btn', levelClass(n)];
+        if (n === favourite) classes.push('favourite');
+        if (self._lastFeedSize === n) classes.push('last-used');
+        var grams = Math.round(n * portionWeight);
+        html += '<button class="' + classes.join(' ') + '" data-size="' + n + '" aria-label="Feed ' + n + ' portions, ~' + grams + ' grams">' +
+          (n === favourite ? '<span class="quick-fav" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"/></svg></span>' : '') +
+          (self._lastFeedSize === n ? '<span class="quick-last-dot" aria-label="Last used"></span>' : '') +
+          pelletsHtml(n) +
+          bowlSvg(n) +
+          '<div class="quick-meta">' +
+            '<span class="quick-btn-val">' + n + '</span>' +
+            '<span class="quick-btn-lbl">~' + grams + 'g</span>' +
+          '</div>' +
+          '<span class="quick-fed-mark" aria-hidden="true">✓ Fed!</span>' +
+        '</button>';
       });
       html += '</div>' +
         '<div class="feed-section-title">Custom</div>' +
@@ -1513,19 +1592,23 @@
           '<div class="custom-label">Number of portions</div>' +
           '<div class="stepper">' +
             '<button class="step-btn" id="c-minus" aria-label="Decrease">−</button>' +
-            '<div class="step-val" id="c-val">1</div>' +
+            '<div class="step-val" id="c-val">' + customSize + '</div>' +
             '<button class="step-btn" id="c-plus" aria-label="Increase">+</button>' +
           '</div>' +
         '</div>' +
-        '<button class="feed-now-btn" id="feed-now-btn">Feed now (1 por. ~' + Math.round(portionWeight) + 'g)</button>';
+        '<button class="feed-now-btn" id="feed-now-btn">Feed now (' + customSize + ' por. ~' + Math.round(customSize*portionWeight) + 'g)</button>';
       container.innerHTML = html;
       var valEl = container.querySelector('#c-val');
       var btn = container.querySelector('#feed-now-btn');
+      var updateCustom = function() {
+        valEl.textContent = customSize;
+        btn.textContent = 'Feed now (' + customSize + ' por. ~' + Math.round(customSize*portionWeight) + 'g)';
+      };
       container.querySelector('#c-minus').addEventListener('click', function() {
-        if (customSize > 1) { customSize--; valEl.textContent = customSize; btn.textContent = 'Feed now (' + customSize + ' por. ~' + Math.round(customSize*portionWeight) + 'g)'; }
+        if (customSize > 1) { customSize--; updateCustom(); }
       });
       container.querySelector('#c-plus').addEventListener('click', function() {
-        if (customSize < 10) { customSize++; valEl.textContent = customSize; btn.textContent = 'Feed now (' + customSize + ' por. ~' + Math.round(customSize*portionWeight) + 'g)'; }
+        if (customSize < 10) { customSize++; updateCustom(); }
       });
       container.querySelectorAll('.quick-btn').forEach(function(b) {
         b.addEventListener('click', function() {
@@ -1534,22 +1617,18 @@
           var size = parseInt(b.dataset.size, 10);
           if (isNaN(size)) return;
           b.dataset.busy = '1';
-          b.style.pointerEvents = 'none';
+          b.classList.add('busy');
           self._showConfirmation(size, function() {
             self._feedNow(size);
+            b.classList.remove('busy');
             b.classList.add('fed');
-            var origHtml = b.innerHTML;
-            var lbl = b.querySelector('.quick-btn-lbl');
-            if (lbl) lbl.textContent = '✓ Fed!';
             setTimeout(function() {
-              b.classList.remove('fed');
-              b.innerHTML = origHtml;
               b.dataset.busy = '';
-              b.style.pointerEvents = '';
-            }, 2000);
+              self._renderTab('feed');
+            }, 1800);
           }, function() {
             b.dataset.busy = '';
-            b.style.pointerEvents = '';
+            b.classList.remove('busy');
           });
         });
       });
