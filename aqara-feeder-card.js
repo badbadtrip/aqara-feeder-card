@@ -1,6 +1,6 @@
 (function () {
   console.info(
-    `%c AQARA-FEEDER-CARD %c v1.0.7 `,
+    `%c AQARA-FEEDER-CARD %c v1.1.0 `,
     'color: white; background: #f5a623; font-weight: bold;',
     'color: #f5a623; background: white; font-weight: bold;'
   );
@@ -63,6 +63,8 @@
             { key: 'topic',         label: 'MQTT topic (set)',    type: 'text',   default: 'zigbee2mqtt/Feeder/set' },
             { key: 'max_schedules', label: 'Max schedules',       type: 'number', default: 6 },
             { key: 'vibration_enabled', label: 'Haptic feedback', type: 'checkbox', default: true },
+            { key: 'mqtt_retain',   label: 'MQTT retain flag',    type: 'checkbox', default: false,
+              note: { type: 'template', text: 'Adds <code>retain: true</code> to MQTT publishes so broker keeps last schedule across restarts.' } },
           ]
         },
         {
@@ -211,6 +213,13 @@
               type: 'entity',
               default: 'update.feeder',
               note: { type: 'z2m', text: 'Created automatically by Zigbee2MQTT. Displays the firmware version in settings.' }
+            },
+            {
+              key: 'entity_food_level',
+              label: 'Food level (optional)',
+              type: 'entity',
+              default: '',
+              note: { type: 'template', text: 'Optional. Numeric sensor 0–100 (percent) shown as a progress bar in the header. Leave empty to hide.' }
             },
           ]
         },
@@ -451,6 +460,15 @@
       this._schedules = [];
       this._isLoading = false;
       this._lastSent = null;
+      this._pending = false;
+      this._undo = null;
+      this._undoTimer = null;
+      this._countdownTimer = null;
+    }
+    disconnectedCallback() {
+      if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+      if (this._undoTimer) { clearTimeout(this._undoTimer); this._undoTimer = null; }
+      if (this._countdownTimer) { clearInterval(this._countdownTimer); this._countdownTimer = null; }
     }
     static getConfigElement() {
       return document.createElement('aqara-feeder-card-editor');
@@ -462,6 +480,7 @@
         topic: 'zigbee2mqtt/Feeder/set',
         max_schedules: 6,
         vibration_enabled: true,
+        mqtt_retain: false,
         label_schedule:       'Schedule',
         label_feed:           'Feed now',
         label_settings:       'Settings',
@@ -491,6 +510,7 @@
         entity_led:              'switch.feeder_led_indicator',
         entity_error:            'binary_sensor.feeder_error',
         entity_update:           'update.feeder',
+        entity_food_level:       '',
       };
     }
     setConfig(config) {
@@ -532,7 +552,7 @@
       if (raw === null || raw === 'unavailable' || raw === 'unknown') {
         return null;
       }
-      if (this._schedules.length === 0 && !this._lastSent) {
+      if (this._schedules.length === 0 && !this._lastSent && !this._pending) {
         var actual = this._getActualSchedule();
         if (actual.length > 0) {
           this._schedules = actual.map(function(a) {
@@ -540,9 +560,26 @@
           });
         }
       }
+      if (this._lastSent) {
+        var actualSig = this._scheduleSignature(this._getActualSchedule());
+        var localSig = this._scheduleSignature(this._schedules);
+        if (actualSig === localSig) {
+          this._lastSent = null;
+          this._pending = false;
+        }
+      }
       return this._schedules;
     }
+    _hasDivergence() {
+      var actual = this._getActualSchedule();
+      return this._scheduleSignature(actual) !== this._scheduleSignature(this._schedules);
+    }
     _pad(n) { return String(Math.round(n)).padStart(2, '0'); }
+    _mqttPublish(payload) {
+      var args = { topic: this._config.topic, payload: JSON.stringify(payload) };
+      if (this._config.mqtt_retain) args.retain = true;
+      this._hass.callService('mqtt', 'publish', args);
+    }
     _sendSchedule() {
       var schedules = this._schedules;
       if (!schedules || schedules.length === 0) return;
@@ -552,14 +589,77 @@
         })
       };
       this._lastSent = Date.now();
-      this._hass.callService('mqtt', 'publish', { topic: this._config.topic, payload: JSON.stringify(payload) });
+      this._pending = false;
+      this._mqttPublish(payload);
     }
     _feedNow(size) {
       var servingEntity = this._e('entity_serving_size');
       if (servingEntity && this._hass.states[servingEntity]) {
         this._hass.callService('number', 'set_value', { entity_id: servingEntity, value: size });
       }
-      this._hass.callService('mqtt', 'publish', { topic: this._config.topic, payload: JSON.stringify({ feed: 'START' }) });
+      this._mqttPublish({ feed: 'START' });
+    }
+    _markPending() {
+      this._pending = true;
+      this._renderHeader();
+    }
+    _scheduleSignature(arr) {
+      if (!arr) return '';
+      return arr.slice().sort(function(a, b) {
+        return (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute);
+      }).map(function(s) {
+        return Math.round(s.hour) + ':' + Math.round(s.minute) + ':' + Math.round(s.size);
+      }).join(',');
+    }
+    _computeNextFeeding() {
+      var schedules = this._schedules;
+      if (!schedules || schedules.length === 0) return null;
+      var now = new Date();
+      var nowMin = now.getHours() * 60 + now.getMinutes();
+      var nowSec = now.getSeconds();
+      var minDiff = Infinity;
+      var next = null;
+      schedules.forEach(function(s) {
+        var sm = s.hour * 60 + s.minute;
+        var diff = sm > nowMin ? sm - nowMin : sm + 1440 - nowMin;
+        if (diff < minDiff) { minDiff = diff; next = s; }
+      });
+      if (!next) return null;
+      var totalSec = minDiff * 60 - nowSec;
+      if (totalSec < 0) totalSec += 86400;
+      return { schedule: next, seconds: totalSec };
+    }
+    _formatCountdown(sec) {
+      if (sec == null || sec < 0) return '';
+      var h = Math.floor(sec / 3600);
+      var m = Math.floor((sec % 3600) / 60);
+      if (h > 0) return h + 'h ' + m + 'm';
+      if (m > 0) return m + 'm';
+      return '<1m';
+    }
+    _formatGrams(g) {
+      if (g === '-' || g === undefined || g === null) return { val: '-', unit: 'g' };
+      var n = parseFloat(g);
+      if (isNaN(n)) return { val: g, unit: 'g' };
+      if (n >= 1000) return { val: (n / 1000).toFixed(1), unit: 'kg' };
+      return { val: String(Math.round(n)), unit: 'g' };
+    }
+    _clickFeedback() {
+      if (this._config.vibration_enabled === false) return;
+      if (navigator.vibrate) return;
+      try {
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        var ctx = this._audioCtx || (this._audioCtx = new Ctx());
+        var o = ctx.createOscillator();
+        var g = ctx.createGain();
+        o.frequency.value = 880;
+        g.gain.value = 0.04;
+        o.connect(g); g.connect(ctx.destination);
+        o.start();
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.05);
+        o.stop(ctx.currentTime + 0.06);
+      } catch(e) {}
     }
     _showFeedSuccess(btn) {
       var G = 'rgb(206,245,149)';
@@ -592,15 +692,34 @@
         if (sent.parentNode) sent.parentNode.removeChild(sent);
       }, 3000);
     }
-    _showConfirmation(size, onConfirm) {
+    _showConfirmation(size, onConfirm, onCancel) {
       var self = this;
       var portionWeight = parseFloat(this._state(this._e('entity_portion_weight'), '5')) || 5;
       var grams = Math.round(size * portionWeight);
       var existing = this._shadow.querySelector('.popup-overlay');
       if (existing) existing.remove();
+      var confirmed = false;
       var overlay = document.createElement('div');
       overlay.className = 'popup-overlay';
-      overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+      overlay.setAttribute('tabindex', '-1');
+      var dismiss = function() {
+        if (overlay.parentNode) overlay.remove();
+        document.removeEventListener('keydown', onKey, true);
+        if (!confirmed && typeof onCancel === 'function') onCancel();
+      };
+      var confirmAction = function() {
+        if (confirmed) return;
+        confirmed = true;
+        if (overlay.parentNode) overlay.remove();
+        document.removeEventListener('keydown', onKey, true);
+        onConfirm();
+      };
+      var onKey = function(e) {
+        if (e.key === 'Escape') { e.preventDefault(); dismiss(); }
+        else if (e.key === 'Enter') { e.preventDefault(); confirmAction(); }
+      };
+      document.addEventListener('keydown', onKey, true);
+      overlay.addEventListener('click', function(e) { if (e.target === overlay) dismiss(); });
       var popup = document.createElement('div');
       popup.className = 'popup';
       popup.innerHTML =
@@ -609,18 +728,24 @@
         '<div style="text-align:center;font-size:13px;color:#969aa6;margin-bottom:20px;">' +
           'Will dispense <strong style="color:#fff;">' + size + ' por.</strong> (~' + grams + 'g)' +
         '</div>' +
-        '<button class="popup-save" id="confirm-feed-btn" style="background:rgb(206,245,149);color:#000;">Feed</button>';
+        '<div class="popup-actions">' +
+          '<button class="popup-cancel" id="cancel-feed-btn">Cancel</button>' +
+          '<button class="popup-save" id="confirm-feed-btn" style="background:rgb(206,245,149);color:#000;">Feed</button>' +
+        '</div>';
       overlay.appendChild(popup);
       this._shadow.querySelector('.card').appendChild(overlay);
-      popup.querySelector('.popup-close').addEventListener('click', function() { overlay.remove(); });
-      popup.querySelector('#confirm-feed-btn').addEventListener('click', function() {
-        overlay.remove();
-        onConfirm();
-      });
+      popup.querySelector('.popup-close').addEventListener('click', dismiss);
+      popup.querySelector('#cancel-feed-btn').addEventListener('click', dismiss);
+      popup.querySelector('#confirm-feed-btn').addEventListener('click', confirmAction);
+      var confirmBtn = popup.querySelector('#confirm-feed-btn');
+      if (confirmBtn && confirmBtn.focus) confirmBtn.focus();
     }
     _vibrate(pattern) {
-      if (this._config.vibration_enabled !== false && navigator.vibrate) {
+      if (this._config.vibration_enabled === false) return;
+      if (navigator.vibrate) {
         navigator.vibrate(pattern || 10);
+      } else {
+        this._clickFeedback();
       }
     }
     _render() {
@@ -758,16 +883,66 @@
         '.size-step-btn:hover{background:' + BG2 + ';filter:brightness(1.3);border-color:' + Y + ';}' +
         '.size-val{font-size:32px;font-weight:500;min-width:48px;text-align:center;color:#fff;}' +
         '.size-sub{font-size:11px;color:#636774;text-align:center;margin-top:4px;}' +
-        '.popup-save{width:100%;padding:13px;background:' + Y + ';color:#000;border:none;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;margin-top:20px;transition:opacity .2s;}' +
+        '.popup-save{flex:2;padding:13px;background:' + Y + ';color:#000;border:none;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .2s;}' +
         '.popup-save:hover{opacity:.85;}' +
+        '.popup-actions{display:flex;gap:8px;margin-top:20px;}' +
+        '.popup-cancel{flex:1;padding:13px;background:' + BG2 + ';color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .2s,background .2s;}' +
+        '.popup-cancel:hover{background:#373c4a;}' +
+        '.popup-warn{margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(255,145,138,.12);color:' + R + ';font-size:11px;line-height:1.4;}' +
+        '.num-input.invalid{border-color:' + R + ';background:rgba(255,145,138,.08);}' +
+        '.badge-pending{background:rgba(255,218,120,.18);color:' + Y + ';animation:badgePulse 1.6s ease-in-out infinite;}' +
+        '.badge-mode{background:' + BG1 + ';color:#969aa6;}' +
+        '@keyframes badgePulse{0%,100%{opacity:.7}50%{opacity:1}}' +
+        '.apply-btn.pulse{animation:applyPulse 1.6s ease-in-out infinite;}' +
+        '@keyframes applyPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,218,120,.5)}50%{box-shadow:0 0 0 6px rgba(255,218,120,0)}}' +
+        '.add-btn.danger,.add-btn.warn{flex:0 0 auto;padding:11px 13px;display:flex;align-items:center;justify-content:center;}' +
+        '.add-btn.danger{color:#636774;}' +
+        '.add-btn.danger:hover{color:' + R + ';border-color:' + R + ';background:rgba(255,145,138,.08);}' +
+        '.add-btn.danger.holding,.sched-delete.holding{animation:holdProgress .55s linear forwards;}' +
+        '.add-btn.warn{color:' + O + ';border-color:' + O + ';}' +
+        '.add-btn.warn:hover{background:rgba(255,181,129,.12);}' +
+        '@keyframes holdProgress{0%{transform:scale(1)}100%{transform:scale(0.92);background:rgba(255,145,138,.25)}}' +
+        '.sched-skeleton{display:flex;align-items:center;gap:12px;background:' + BG1 + ';border-radius:16px;padding:12px 14px;overflow:hidden;}' +
+        '.skel-dot,.skel-time,.skel-line,.skel-status{background:linear-gradient(90deg,' + BG2 + ' 0%,#3a3f4d 50%,' + BG2 + ' 100%);background-size:200% 100%;animation:skelShimmer 1.4s ease-in-out infinite;border-radius:6px;}' +
+        '.skel-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}' +
+        '.skel-time{width:60px;height:24px;}' +
+        '.skel-info{flex:1;display:flex;flex-direction:column;gap:6px;}' +
+        '.skel-line-1{height:12px;width:60%;}' +
+        '.skel-line-2{height:10px;width:35%;}' +
+        '.skel-status{width:54px;height:18px;border-radius:20px;}' +
+        '.skel-hint{text-align:center;font-size:11px;color:#535865;margin-top:10px;}' +
+        '@keyframes skelShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}' +
+        '.food-bar{margin:0 20px 12px;padding:10px 14px;background:' + BG1 + ';border-radius:14px;display:flex;align-items:center;gap:10px;}' +
+        '.food-bar-label{font-size:11px;color:#636774;text-transform:uppercase;letter-spacing:.4px;flex-shrink:0;}' +
+        '.food-bar-track{flex:1;height:6px;border-radius:3px;background:' + BG2 + ';overflow:hidden;}' +
+        '.food-bar-fill{height:100%;border-radius:3px;transition:width .4s ease;}' +
+        '.food-bar.ok .food-bar-fill{background:' + G + ';}' +
+        '.food-bar.mid .food-bar-fill{background:' + O + ';}' +
+        '.food-bar.low .food-bar-fill{background:' + R + ';}' +
+        '.food-bar-val{font-size:12px;color:#fff;font-weight:600;min-width:34px;text-align:right;}' +
+        '.food-bar.low .food-bar-val{color:' + R + ';}' +
+        '.segmented{display:inline-flex;background:' + BG2 + ';border-radius:10px;padding:2px;}' +
+        '.seg-btn{padding:6px 14px;border:none;background:transparent;color:#969aa6;font-size:12px;font-weight:600;cursor:pointer;border-radius:8px;transition:background .2s,color .2s;}' +
+        '.seg-btn.active{background:' + Y + ';color:#000;}' +
+        '.seg-btn:not(.active):hover{color:#fff;}' +
+        '.snackbar{position:absolute;left:16px;right:16px;bottom:16px;background:#2a2e3a;color:#fff;padding:12px 14px;border-radius:12px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:20;animation:snackIn .25s ease;}' +
+        '@keyframes snackIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}' +
+        '.snackbar.snackbar-out{animation:snackOut .2s ease forwards;}' +
+        '@keyframes snackOut{to{opacity:0;transform:translateY(8px)}}' +
+        '.snackbar-text{flex:1;font-size:13px;}' +
+        '.snackbar-action{background:transparent;border:none;color:' + Y + ';font-size:13px;font-weight:700;cursor:pointer;padding:4px 8px;border-radius:6px;}' +
+        '.snackbar-action:hover{background:rgba(255,218,120,.12);}' +
+        '.busy{pointer-events:none;opacity:.6;}' +
         '.tab-btn:focus-visible,.quick-btn:focus-visible,.step-btn:focus-visible,.size-step-btn:focus-visible,' +
         '.sched-delete:focus-visible,.add-btn:focus-visible,.apply-btn:focus-visible,' +
-        '.feed-now-btn:focus-visible,.popup-close:focus-visible,.popup-save:focus-visible,' +
+        '.feed-now-btn:focus-visible,.popup-close:focus-visible,.popup-save:focus-visible,.popup-cancel:focus-visible,' +
+        '.seg-btn:focus-visible,.snackbar-action:focus-visible,' +
         '.color-reset:focus-visible{outline:2px solid ' + Y + ';outline-offset:2px;}' +
         '@media(prefers-reduced-motion:reduce){' +
-          '.online-dot,.loading-ring,.loading-dot{animation:none!important;}' +
+          '.online-dot,.loading-ring,.loading-dot,.skel-dot,.skel-time,.skel-line,.skel-status,.apply-btn.pulse,.badge-pending{animation:none!important;}' +
           '.tab-pane{animation:none!important;}' +
           '.popup{animation:none!important;}' +
+          '.snackbar{animation:none!important;}' +
         '}';
       var icon = this._config.icon || '';
       var iconHtml;
@@ -811,20 +986,50 @@
       wrapper.innerHTML = html;
       this._shadow.appendChild(wrapper.firstChild);
       var self = this;
+      var tabs = ['schedule', 'feed', 'info'];
+      var switchTab = function(tab) {
+        if (tabs.indexOf(tab) === -1) return;
+        self._isLoading = false;
+        self._shadow.querySelectorAll('.tab-btn').forEach(function(b) {
+          b.classList.toggle('active', b.dataset.tab === tab);
+        });
+        self._activeTab = tab;
+        tabs.forEach(function(t) {
+          var el = self._shadow.querySelector('#tab-' + t);
+          if (el) el.style.display = t === tab ? '' : 'none';
+        });
+        self._renderTab(tab);
+      };
+      this._switchTab = switchTab;
       this._shadow.querySelectorAll('.tab-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
           self._vibrate(10);
-          self._isLoading = false; 
-          self._shadow.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-          btn.classList.add('active');
-          self._activeTab = btn.dataset.tab;
-          ['schedule','feed','info'].forEach(function(t) {
-            var el = self._shadow.querySelector('#tab-' + t);
-            if (el) el.style.display = t === self._activeTab ? '' : 'none';
-          });
-          self._renderTab(self._activeTab);
+          switchTab(btn.dataset.tab);
         });
       });
+      var content = this._shadow.querySelector('.content');
+      if (content) {
+        var startX = 0, startY = 0, tracking = false;
+        content.addEventListener('touchstart', function(e) {
+          if (e.touches.length !== 1) return;
+          tracking = true;
+          startX = e.touches[0].clientX;
+          startY = e.touches[0].clientY;
+        }, { passive: true });
+        content.addEventListener('touchend', function(e) {
+          if (!tracking) return;
+          tracking = false;
+          var t = e.changedTouches[0];
+          var dx = t.clientX - startX;
+          var dy = t.clientY - startY;
+          if (Math.abs(dx) < 50 || Math.abs(dy) > 50) return;
+          if (self._shadow.querySelector('.popup-overlay')) return;
+          var idx = tabs.indexOf(self._activeTab);
+          if (idx < 0) return;
+          if (dx < 0 && idx < tabs.length - 1) { self._vibrate(8); switchTab(tabs[idx + 1]); }
+          else if (dx > 0 && idx > 0) { self._vibrate(8); switchTab(tabs[idx - 1]); }
+        }, { passive: true });
+      }
       this._updateDynamic();
     }
     _updateDynamic() {
@@ -837,18 +1042,73 @@
     _renderHeader() {
       var sub = this._shadow.querySelector('#hdr-sub');
       var badges = this._shadow.querySelector('#hdr-badges');
+      var foodBar = this._shadow.querySelector('#food-bar');
       if (!sub || !badges) return;
       var mode = this._state(this._e('entity_mode'), 'unavailable');
       var error = this._state(this._e('entity_error')) === 'on';
       var online = mode !== 'unavailable' && mode !== 'unknown';
-      var pretty = this._state(this._e('entity_schedule_pretty'), '');
-      var text = (pretty && pretty !== 'unavailable' && pretty !== 'unknown') ? pretty : 'No schedule';
-      sub.textContent = text;
-      sub.title = text;
-      var dotHtml = online ? '<div class="online-dot"></div>' : '<div class="offline-dot"></div>';
-      badges.innerHTML = error
-        ? dotHtml + '<span class="badge badge-error">Error</span>'
-        : dotHtml;
+      var next = this._computeNextFeeding();
+      if (next) {
+        var cd = this._formatCountdown(next.seconds);
+        sub.textContent = 'Next in ' + cd + ' · ' + this._pad(next.schedule.hour) + ':' + this._pad(next.schedule.minute);
+      } else {
+        var pretty = this._state(this._e('entity_schedule_pretty'), '');
+        var text = (pretty && pretty !== 'unavailable' && pretty !== 'unknown') ? pretty : 'No schedule';
+        sub.textContent = text;
+      }
+      sub.title = sub.textContent;
+      var parts = [];
+      parts.push(online ? '<div class="online-dot"></div>' : '<div class="offline-dot"></div>');
+      if (online && mode === 'manual') parts.push('<span class="badge badge-mode">Manual</span>');
+      if (this._pending) parts.push('<span class="badge badge-pending" title="Unsent local changes">● Pending</span>');
+      if (error) parts.push('<span class="badge badge-error">Error</span>');
+      badges.innerHTML = parts.join('');
+      var foodEntity = this._e('entity_food_level');
+      if (foodEntity && this._hass && this._hass.states[foodEntity]) {
+        var pct = parseFloat(this._hass.states[foodEntity].state);
+        if (!isNaN(pct)) {
+          if (pct > 100) pct = 100;
+          if (pct < 0) pct = 0;
+          var levelClass = pct < 15 ? 'low' : pct < 35 ? 'mid' : 'ok';
+          if (!foodBar) {
+            var stats = this._shadow.querySelector('#stats-row');
+            if (stats && stats.parentNode) {
+              var bar = document.createElement('div');
+              bar.id = 'food-bar';
+              bar.className = 'food-bar ' + levelClass;
+              bar.innerHTML = '<div class="food-bar-label">Food level</div><div class="food-bar-track"><div class="food-bar-fill" style="width:' + pct + '%;"></div></div><div class="food-bar-val">' + Math.round(pct) + '%</div>';
+              stats.parentNode.insertBefore(bar, stats);
+            }
+          } else {
+            foodBar.className = 'food-bar ' + levelClass;
+            var fill = foodBar.querySelector('.food-bar-fill');
+            var val = foodBar.querySelector('.food-bar-val');
+            if (fill) fill.style.width = pct + '%';
+            if (val) val.textContent = Math.round(pct) + '%';
+          }
+        }
+      } else if (foodBar) {
+        foodBar.remove();
+      }
+      this._ensureCountdownTimer();
+    }
+    _ensureCountdownTimer() {
+      var self = this;
+      if (this._countdownTimer) return;
+      if (!this._computeNextFeeding()) return;
+      this._countdownTimer = setInterval(function() {
+        if (!self.isConnected) {
+          clearInterval(self._countdownTimer);
+          self._countdownTimer = null;
+          return;
+        }
+        var sub = self._shadow.querySelector('#hdr-sub');
+        if (!sub) return;
+        var n = self._computeNextFeeding();
+        if (!n) return;
+        var cd = self._formatCountdown(n.seconds);
+        sub.textContent = 'Next in ' + cd + ' · ' + self._pad(n.schedule.hour) + ':' + self._pad(n.schedule.minute);
+      }, 30000);
     }
     _renderStats() {
       var el = this._shadow.querySelector('#stats-row');
@@ -857,11 +1117,12 @@
       var portions = clean(this._state(this._e('entity_portions_day'), '-'));
       var grams = clean(this._state(this._e('entity_weight_day'), '-'));
       var weight = clean(this._state(this._e('entity_portion_weight'), '-'));
+      var gFmt = this._formatGrams(grams);
       var portionsClass = (portions === '0' || portions === '-') ? 'stat-val empty' : 'stat-val';
-      var gramsClass = (grams === '0' || grams === '-') ? 'stat-val empty' : 'stat-val';
+      var gramsClass = (gFmt.val === '0' || gFmt.val === '-') ? 'stat-val empty' : 'stat-val';
       el.innerHTML =
         '<div class="stat"><div class="' + portionsClass + '">' + portions + '</div><div class="stat-lbl">' + this._lbl('label_portions_today', 'Portions today') + '</div></div>' +
-        '<div class="stat"><div class="' + gramsClass + '">' + grams + '<span>g</span></div><div class="stat-lbl">' + this._lbl('label_grams_today', 'Grams today') + '</div></div>' +
+        '<div class="stat"><div class="' + gramsClass + '">' + gFmt.val + '<span>' + gFmt.unit + '</span></div><div class="stat-lbl">' + this._lbl('label_grams_today', 'Grams today') + '</div></div>' +
         '<div class="stat"><div class="stat-val">' + weight + '<span>g</span></div><div class="stat-lbl">' + this._lbl('label_per_portion', 'Per portion') + '</div></div>';
     }
     _renderTab(tab) {
@@ -880,18 +1141,18 @@
       var maxSchedules = this._config.max_schedules || 6;
       if (schedules === null) {
         this._isLoading = true;
+        var skel = '';
+        for (var i = 0; i < 3; i++) {
+          skel += '<div class="sched-skeleton">' +
+                    '<div class="skel-dot"></div>' +
+                    '<div class="skel-time"></div>' +
+                    '<div class="skel-info"><div class="skel-line skel-line-1"></div><div class="skel-line skel-line-2"></div></div>' +
+                    '<div class="skel-status"></div>' +
+                  '</div>';
+        }
         container.innerHTML =
-          '<div class="empty-state loading">' +
-            '<div class="loading-spinner">' +
-              '<div class="loading-ring"></div>' +
-            '</div>' +
-            '<div class="empty-state-text"><strong>Waiting for Home Assistant</strong><br>Fetching schedule data from the feeder...</div>' +
-            '<div class="loading-dots">' +
-              '<div class="loading-dot"></div>' +
-              '<div class="loading-dot"></div>' +
-              '<div class="loading-dot"></div>' +
-            '</div>' +
-          '</div>';
+          '<div class="schedule-list">' + skel + '</div>' +
+          '<div class="skel-hint">Waiting for Home Assistant…</div>';
         return;
       }
       this._isLoading = false;
@@ -902,18 +1163,14 @@
             '<div class="empty-state-text"><strong>No feedings scheduled</strong><br>Add your first feeding time below.</div>' +
           '</div>' +
           '<div class="sched-actions">' +
-            '<button class="add-btn" id="add-slot-btn">+ Add feeding</button>' +
-            '<button class="apply-btn" id="apply-btn">Send to feeder</button>' +
+            '<button class="add-btn" id="add-slot-btn" style="flex:1;">+ Add feeding</button>' +
           '</div>';
         container.querySelector('#add-slot-btn').addEventListener('click', function() {
+          self._vibrate(10);
           self._schedules.push({ hour: 8, minute: 0, size: 3 });
+          self._markPending();
           self._renderTab('schedule');
-          setTimeout(function() { self._openEditPopup(0); }, 50);
-        });
-        container.querySelector('#apply-btn').addEventListener('click', function() {
-          self._vibrate([10, 20, 10]);
-          self._sendSchedule();
-          self._showSent();
+          setTimeout(function() { self._openEditPopup(0, true); }, 50);
         });
         return;
       }
@@ -955,27 +1212,74 @@
           '</div>';
       });
       html += '</div>';
+      var diverges = this._hasDivergence();
       html += '<div class="sched-actions">';
       if (schedules.length < maxSchedules) {
-        html += '<button class="add-btn" id="add-slot-btn">+ Add feeding</button>';
+        html += '<button class="add-btn" id="add-slot-btn">+ Add</button>';
       }
-      html += '<button class="apply-btn" id="apply-btn">Send to feeder</button>';
+      html += '<button class="add-btn danger" id="clear-all-btn" aria-label="Clear all"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>';
+      if (diverges) {
+        html += '<button class="add-btn warn" id="sync-btn" title="Reload from feeder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>';
+      }
+      html += '<button class="apply-btn' + (this._pending ? ' pulse' : '') + '" id="apply-btn">' + (this._pending ? 'Send changes' : 'Send to feeder') + '</button>';
       html += '</div>';
       container.innerHTML = html;
       container.querySelectorAll('.sched-item').forEach(function(el) {
         el.addEventListener('click', function(e) {
-          if (e.target.classList.contains('sched-delete') || e.target.classList.contains('sched-delete-inner')) return;
+          if (e.target.closest && e.target.closest('.sched-delete')) return;
           self._vibrate(10);
-          self._openEditPopup(parseInt(el.dataset.slot), sortedSchedules);
+          var sortedIdx = parseInt(el.dataset.slot, 10);
+          var item = indexed[sortedIdx];
+          if (!item) return;
+          self._openEditPopup(item.i);
         });
       });
-      container.querySelectorAll('.sched-delete').forEach(function(btn) {
+      var attachLongPress = function(btn, onTrigger) {
+        var holdTimer = null;
+        var fired = false;
+        var start = function(ev) {
+          ev.preventDefault();
+          fired = false;
+          btn.classList.add('holding');
+          holdTimer = setTimeout(function() {
+            fired = true;
+            btn.classList.remove('holding');
+            self._vibrate([20, 30, 20]);
+            onTrigger();
+          }, 550);
+        };
+        var cancel = function() {
+          btn.classList.remove('holding');
+          if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+        };
+        btn.addEventListener('pointerdown', start);
+        btn.addEventListener('pointerup', cancel);
+        btn.addEventListener('pointerleave', cancel);
+        btn.addEventListener('pointercancel', cancel);
         btn.addEventListener('click', function(e) {
           e.stopPropagation();
-          self._vibrate(20);
-          var delIdx = parseInt(btn.dataset.del);
-          self._schedules = sortedSchedules.filter(function(_, i) { return i !== delIdx; });
+          if (!fired) self._showSnackbar('Hold to delete');
+        });
+      };
+      container.querySelectorAll('.sched-delete').forEach(function(btn) {
+        var sortedIdx = parseInt(btn.dataset.del, 10);
+        var item = indexed[sortedIdx];
+        if (!item) return;
+        var origIdx = item.i;
+        attachLongPress(btn, function() {
+          var removed = self._schedules[origIdx];
+          if (!removed) return;
+          self._undo = { schedule: removed, index: origIdx };
+          self._schedules = self._schedules.filter(function(_, i) { return i !== origIdx; });
+          self._markPending();
           self._renderTab('schedule');
+          self._showSnackbar('Feeding removed', 'Undo', function() {
+            if (!self._undo) return;
+            var u = self._undo;
+            self._schedules.splice(Math.min(u.index, self._schedules.length), 0, u.schedule);
+            self._undo = null;
+            self._renderTab('schedule');
+          });
         });
       });
       var addBtn = container.querySelector('#add-slot-btn');
@@ -985,30 +1289,121 @@
           var last = self._schedules[self._schedules.length - 1];
           var newHour = last ? (last.hour + 2) % 24 : 8;
           self._schedules.push({ hour: newHour, minute: 0, size: 3 });
+          self._markPending();
           self._renderTab('schedule');
-          setTimeout(function() { self._openEditPopup(self._schedules.length - 1); }, 50);
+          setTimeout(function() { self._openEditPopup(self._schedules.length - 1, true); }, 50);
+        });
+      }
+      var clearBtn = container.querySelector('#clear-all-btn');
+      if (clearBtn) {
+        attachLongPress(clearBtn, function() {
+          var backup = self._schedules.slice();
+          self._undo = { all: backup };
+          self._schedules = [];
+          self._markPending();
+          self._renderTab('schedule');
+          self._showSnackbar('Cleared ' + backup.length + ' feedings', 'Undo', function() {
+            if (!self._undo || !self._undo.all) return;
+            self._schedules = self._undo.all.slice();
+            self._undo = null;
+            self._renderTab('schedule');
+          });
+        });
+      }
+      var syncBtn = container.querySelector('#sync-btn');
+      if (syncBtn) {
+        syncBtn.addEventListener('click', function() {
+          self._vibrate(15);
+          var actual = self._getActualSchedule();
+          self._schedules = actual.map(function(a) {
+            return { hour: a.hour, minute: a.minute, size: a.size };
+          });
+          self._pending = false;
+          self._lastSent = null;
+          self._undo = null;
+          self._renderHeader();
+          self._renderTab('schedule');
+          self._showSnackbar('Synced from feeder');
         });
       }
       var applyBtn = container.querySelector('#apply-btn');
       if (applyBtn) {
         applyBtn.addEventListener('click', function() {
+          if (applyBtn.disabled) return;
+          if (!self._schedules || self._schedules.length === 0) return;
+          applyBtn.disabled = true;
+          applyBtn.style.opacity = '0.6';
+          self._vibrate([10, 20, 10]);
           self._sendSchedule();
+          self._renderHeader();
           self._showSent();
+          setTimeout(function() {
+            applyBtn.disabled = false;
+            applyBtn.style.opacity = '';
+          }, 1500);
         });
       }
     }
-    _openEditPopup(slot, snapshot) {
+    _showSnackbar(text, actionText, onAction) {
+      var self = this;
+      var card = this._shadow.querySelector('.card');
+      if (!card) return;
+      var existing = this._shadow.querySelector('.snackbar');
+      if (existing) existing.remove();
+      if (this._undoTimer) { clearTimeout(this._undoTimer); this._undoTimer = null; }
+      var bar = document.createElement('div');
+      bar.className = 'snackbar';
+      bar.innerHTML = '<span class="snackbar-text">' + text + '</span>' +
+        (actionText ? '<button class="snackbar-action">' + actionText + '</button>' : '');
+      card.appendChild(bar);
+      var dismiss = function() {
+        if (bar.parentNode) bar.classList.add('snackbar-out');
+        setTimeout(function() { if (bar.parentNode) bar.remove(); }, 200);
+        if (self._undoTimer) { clearTimeout(self._undoTimer); self._undoTimer = null; }
+      };
+      var actionBtn = bar.querySelector('.snackbar-action');
+      if (actionBtn) {
+        actionBtn.addEventListener('click', function() {
+          if (typeof onAction === 'function') onAction();
+          dismiss();
+        });
+      }
+      this._undoTimer = setTimeout(function() {
+        self._undo = null;
+        dismiss();
+      }, 5000);
+    }
+    _openEditPopup(slot, isNew) {
       var self = this;
       var existing = this._shadow.querySelector('.popup-overlay');
       if (existing) existing.remove();
-      var source = snapshot || this._schedules;
-      var s = source[slot];
+      var s = this._schedules[slot];
       if (!s) return;
       var hour = s.hour, minute = s.minute, size = s.size;
       var portionWeight = parseFloat(this._state(this._e('entity_portion_weight'), '5')) || 5;
       var overlay = document.createElement('div');
       overlay.className = 'popup-overlay';
-      overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+      overlay.setAttribute('tabindex', '-1');
+      var closed = false;
+      var saved = false;
+      var dismiss = function() {
+        if (closed) return;
+        closed = true;
+        if (overlay.parentNode) overlay.remove();
+        document.removeEventListener('keydown', onKey, true);
+        if (isNew && !saved) {
+          self._schedules.splice(slot, 1);
+          if (self._schedules.length === 0) self._pending = false;
+          self._renderTab('schedule');
+          self._renderHeader();
+        }
+      };
+      var onKey = function(e) {
+        if (e.key === 'Escape') { e.preventDefault(); dismiss(); }
+        else if (e.key === 'Enter' && e.target && e.target.tagName !== 'BUTTON') { e.preventDefault(); saveBtn.click(); }
+      };
+      document.addEventListener('keydown', onKey, true);
+      overlay.addEventListener('click', function(e) { if (e.target === overlay) dismiss(); });
       var popup = document.createElement('div');
       popup.className = 'popup';
       popup.innerHTML =
@@ -1017,10 +1412,11 @@
         '<div class="popup-row">' +
           '<div class="popup-row-label">Time</div>' +
           '<div class="time-inputs">' +
-            '<input class="num-input" id="p-hour" type="number" min="0" max="23" value="' + Math.round(hour) + '">' +
+            '<input class="num-input" id="p-hour" type="number" min="0" max="23" inputmode="numeric" value="' + Math.round(hour) + '">' +
             '<span class="time-sep">:</span>' +
-            '<input class="num-input" id="p-min" type="number" min="0" max="59" value="' + Math.round(minute) + '">' +
+            '<input class="num-input" id="p-min" type="number" min="0" max="59" inputmode="numeric" value="' + Math.round(minute) + '">' +
           '</div>' +
+          '<div class="popup-warn" id="p-warn" style="display:none;"></div>' +
         '</div>' +
         '<div class="popup-row">' +
           '<div class="popup-row-label">Portions</div>' +
@@ -1030,12 +1426,47 @@
             '<button class="size-step-btn" id="p-plus" aria-label="Increase">+</button>' +
           '</div>' +
         '</div>' +
-        '<button class="popup-save" id="p-save">Save and send</button>';
+        '<div class="popup-actions">' +
+          '<button class="popup-cancel" id="p-cancel">Cancel</button>' +
+          '<button class="popup-save" id="p-save">Save and send</button>' +
+        '</div>';
       overlay.appendChild(popup);
       this._shadow.querySelector('.card').appendChild(overlay);
       var sizeEl = popup.querySelector('#p-size');
       var gramsEl = popup.querySelector('#p-grams');
-      popup.querySelector('.popup-close').addEventListener('click', function() { overlay.remove(); });
+      var hourInput = popup.querySelector('#p-hour');
+      var minInput = popup.querySelector('#p-min');
+      var warnEl = popup.querySelector('#p-warn');
+      var validate = function() {
+        var h = parseInt(hourInput.value, 10);
+        var m = parseInt(minInput.value, 10);
+        var hOk = !isNaN(h) && h >= 0 && h <= 23;
+        var mOk = !isNaN(m) && m >= 0 && m <= 59;
+        hourInput.classList.toggle('invalid', !hOk);
+        minInput.classList.toggle('invalid', !mOk);
+        var dup = false;
+        if (hOk && mOk) {
+          for (var i = 0; i < self._schedules.length; i++) {
+            if (i === slot) continue;
+            var other = self._schedules[i];
+            if (Math.round(other.hour) === h && Math.round(other.minute) === m) { dup = true; break; }
+          }
+        }
+        if (!hOk || !mOk) {
+          warnEl.style.display = '';
+          warnEl.textContent = 'Time must be 00:00–23:59';
+        } else if (dup) {
+          warnEl.style.display = '';
+          warnEl.textContent = 'Another feeding already scheduled at this time';
+        } else {
+          warnEl.style.display = 'none';
+        }
+        return hOk && mOk && !dup;
+      };
+      hourInput.addEventListener('input', validate);
+      minInput.addEventListener('input', validate);
+      popup.querySelector('.popup-close').addEventListener('click', dismiss);
+      popup.querySelector('#p-cancel').addEventListener('click', dismiss);
       popup.querySelector('#p-minus').addEventListener('click', function() {
         self._vibrate(5);
         if (size > 1) { size--; sizeEl.textContent = size; gramsEl.textContent = '~' + Math.round(size*portionWeight) + 'g'; }
@@ -1044,21 +1475,26 @@
         self._vibrate(5);
         if (size < 10) { size++; sizeEl.textContent = size; gramsEl.textContent = '~' + Math.round(size*portionWeight) + 'g'; }
       });
-      popup.querySelector('#p-save').addEventListener('click', function() {
+      var saveBtn = popup.querySelector('#p-save');
+      saveBtn.addEventListener('click', function() {
+        if (saveBtn.disabled) return;
+        if (!validate()) { self._vibrate(40); return; }
+        saveBtn.disabled = true;
+        saveBtn.style.opacity = '0.6';
         self._vibrate([10, 20, 10]);
-        hour = parseInt(popup.querySelector('#p-hour').value, 10);
-        minute = parseInt(popup.querySelector('#p-min').value, 10);
-        if (isNaN(hour) || hour < 0 || hour > 23) hour = 0;
-        if (isNaN(minute) || minute < 0 || minute > 59) minute = 0;
-        var base = snapshot ? snapshot.slice() : self._schedules.slice();
-        base[slot] = { hour: hour, minute: minute, size: size };
-        self._schedules = base;
+        var h = parseInt(hourInput.value, 10);
+        var m = parseInt(minInput.value, 10);
+        if (self._schedules[slot]) {
+          self._schedules[slot] = { hour: h, minute: m, size: size };
+        }
+        saved = true;
         self._lastSent = Date.now();
         self._sendSchedule();
-        overlay.remove();
+        dismiss();
         self._showSent();
         setTimeout(function() { self._renderTab('schedule'); }, 400);
       });
+      validate();
     }
     _renderFeedTab(container) {
       if (!container) return;
@@ -1093,21 +1529,32 @@
       });
       container.querySelectorAll('.quick-btn').forEach(function(b) {
         b.addEventListener('click', function() {
+          if (b.dataset.busy === '1') return;
           self._vibrate(15);
-          var size = parseInt(b.dataset.size);
+          var size = parseInt(b.dataset.size, 10);
+          if (isNaN(size)) return;
+          b.dataset.busy = '1';
+          b.style.pointerEvents = 'none';
           self._showConfirmation(size, function() {
             self._feedNow(size);
             b.classList.add('fed');
             var origHtml = b.innerHTML;
-            b.querySelector('.quick-btn-lbl').textContent = '✓ Fed!';
+            var lbl = b.querySelector('.quick-btn-lbl');
+            if (lbl) lbl.textContent = '✓ Fed!';
             setTimeout(function() {
               b.classList.remove('fed');
               b.innerHTML = origHtml;
+              b.dataset.busy = '';
+              b.style.pointerEvents = '';
             }, 2000);
+          }, function() {
+            b.dataset.busy = '';
+            b.style.pointerEvents = '';
           });
         });
       });
       btn.addEventListener('click', function() {
+        if (btn.disabled) return;
         self._vibrate(15);
         self._showConfirmation(customSize, function() {
           self._feedNow(customSize);
@@ -1123,13 +1570,24 @@
       var led = this._state(this._e('entity_led')) === 'on';
       var mode = this._state(this._e('entity_mode'), '-');
       var feedingSize = this._state(this._e('entity_feeding_size'), '-');
+      var feedingSource = this._state(this._e('entity_feeding_source'), '-');
+      var sourceLabel = { schedule: 'Auto schedule', manual: 'Manual', remote: 'Remote' }[feedingSource] || (feedingSource === '-' ? '-' : feedingSource);
       var updateEntity = this._e('entity_update');
       var fw = (this._hass && updateEntity && this._hass.states[updateEntity] && this._hass.states[updateEntity].attributes.installed_version) || '-';
       var actual = this._state(this._e('entity_schedule'), '-');
       var rawOpen = container.querySelector('.raw-details') && container.querySelector('.raw-details').open;
+      var modeEntity = this._e('entity_mode');
+      var modeAvailable = mode === 'schedule' || mode === 'manual';
+      var modeRow = modeAvailable
+        ? '<div class="info-row"><div class="info-row-label">Mode</div>' +
+            '<div class="segmented" role="tablist" aria-label="Feeder mode">' +
+              '<button class="seg-btn' + (mode === 'schedule' ? ' active' : '') + '" data-mode="schedule" role="tab" aria-selected="' + (mode === 'schedule') + '">Auto</button>' +
+              '<button class="seg-btn' + (mode === 'manual' ? ' active' : '') + '" data-mode="manual" role="tab" aria-selected="' + (mode === 'manual') + '">Manual</button>' +
+            '</div></div>'
+        : '<div class="info-row"><div class="info-row-label">Mode</div><div class="info-row-val">-</div></div>';
       container.innerHTML =
         '<div class="info-grid">' +
-          '<div class="info-row"><div class="info-row-label">Mode</div><div class="info-row-val">' + (mode === 'schedule' ? 'Auto schedule' : 'Manual') + '</div></div>' +
+          modeRow +
           '<div class="info-row"><div class="info-row-label">Haptic feedback</div><div class="toggle ' + (this._config.vibration_enabled !== false ? 'on' : '') + '" id="toggle-vibration" role="switch" aria-checked="' + (this._config.vibration_enabled !== false) + '"><div class="toggle-thumb"></div></div></div>' +
           '<div class="info-row"><div class="info-row-label">Portion weight</div>' +
             '<div class="info-row-val" style="display:flex;align-items:center;gap:8px;">' +
@@ -1137,19 +1595,38 @@
               '<span id="pw-val">' + portionWeight + '</span>g' +
               '<button class="step-btn" id="pw-plus" style="width:36px;height:36px;font-size:14px;" aria-label="Increase">+</button>' +
             '</div></div>' +
+          '<div class="info-row"><div class="info-row-label">Last feeding source</div><div class="info-row-val">' + sourceLabel + '</div></div>' +
           '<div class="info-row"><div class="info-row-label">Last portion size</div><div class="info-row-val">' + feedingSize + ' por.</div></div>' +
           '<div class="info-row"><div class="info-row-label">Child lock</div><div class="toggle ' + (lock?'on':'') + '" id="toggle-lock" role="switch" aria-checked="' + lock + '"><div class="toggle-thumb"></div></div></div>' +
           '<div class="info-row"><div class="info-row-label">LED indicator</div><div class="toggle ' + (led?'on':'') + '" id="toggle-led" role="switch" aria-checked="' + led + '"><div class="toggle-thumb"></div></div></div>' +
           '<div class="info-row"><div class="info-row-label">Firmware</div><div class="info-row-val">' + fw + '</div></div>' +
           '<details class="raw-details"' + (rawOpen ? ' open' : '') + '><summary>Feeder schedule (raw)</summary><div class="raw-content">' + actual + '</div></details>' +
         '</div>';
-      var pw = parseFloat(portionWeight) || 5;
+      container.querySelectorAll('.seg-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          if (!modeEntity) return;
+          var target = btn.dataset.mode;
+          if (mode === target) return;
+          self._vibrate(15);
+          container.querySelectorAll('.seg-btn').forEach(function(b) {
+            var on = b.dataset.mode === target;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-selected', on);
+          });
+          self._hass.callService('select', 'select_option', { entity_id: modeEntity, option: target });
+        });
+      });
+      var parsedPw = parseFloat(portionWeight);
+      var pw = isNaN(parsedPw) ? 5 : parsedPw;
+      var pwAvailable = !isNaN(parsedPw);
       var pwEl = container.querySelector('#pw-val');
       var pwEntity = this._e('entity_portion_weight');
       container.querySelector('#pw-minus').addEventListener('click', function() {
+        if (!pwAvailable || !pwEntity) return;
         if (pw > 1) { pw--; pwEl.textContent = pw; self._hass.callService('number', 'set_value', { entity_id: pwEntity, value: pw }); }
       });
       container.querySelector('#pw-plus').addEventListener('click', function() {
+        if (!pwAvailable || !pwEntity) return;
         if (pw < 20) { pw++; pwEl.textContent = pw; self._hass.callService('number', 'set_value', { entity_id: pwEntity, value: pw }); }
       });
       var vibrationToggle = container.querySelector('#toggle-vibration');
@@ -1163,6 +1640,7 @@
       }
       var lockEntity = this._e('entity_child_lock');
       container.querySelector('#toggle-lock').addEventListener('click', function() {
+        if (!lockEntity) return;
         self._vibrate([10, 20, 10]);
         var isOn = this.classList.toggle('on');
         this.setAttribute('aria-checked', isOn);
@@ -1170,6 +1648,7 @@
       });
       var ledEntity = this._e('entity_led');
       container.querySelector('#toggle-led').addEventListener('click', function() {
+        if (!ledEntity) return;
         self._vibrate([10, 20, 10]);
         var isOn = this.classList.toggle('on');
         this.setAttribute('aria-checked', isOn);
