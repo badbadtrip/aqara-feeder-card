@@ -1544,7 +1544,7 @@
       if (!sizes.length) sizes = [1, 2, 3, 5];
       var favourite = parseInt(this._config.quick_feed_default, 10);
       if (isNaN(favourite)) favourite = 2;
-      if (this._customSize == null) this._customSize = this._lastFeedSize || favourite;
+      if (this._customSize == null) this._customSize = this._lastFeedSize || 1;
       var customSize = this._customSize;
       var levelClass = function(n) {
         if (n <= 2) return 'level-low';
