@@ -1254,7 +1254,6 @@
       if (schedules.length < maxSchedules) {
         html += '<button class="add-btn" id="add-slot-btn">+ Add</button>';
       }
-      html += '<button class="add-btn danger" id="clear-all-btn" aria-label="Clear all"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>';
       if (diverges) {
         html += '<button class="add-btn warn" id="sync-btn" title="Reload from feeder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>';
       }
@@ -1329,22 +1328,6 @@
           self._markPending();
           self._renderTab('schedule');
           setTimeout(function() { self._openEditPopup(self._schedules.length - 1, true); }, 50);
-        });
-      }
-      var clearBtn = container.querySelector('#clear-all-btn');
-      if (clearBtn) {
-        attachLongPress(clearBtn, function() {
-          var backup = self._schedules.slice();
-          self._undo = { all: backup };
-          self._schedules = [];
-          self._markPending();
-          self._renderTab('schedule');
-          self._showSnackbar('Cleared ' + backup.length + ' feedings', 'Undo', function() {
-            if (!self._undo || !self._undo.all) return;
-            self._schedules = self._undo.all.slice();
-            self._undo = null;
-            self._renderTab('schedule');
-          });
         });
       }
       var syncBtn = container.querySelector('#sync-btn');
