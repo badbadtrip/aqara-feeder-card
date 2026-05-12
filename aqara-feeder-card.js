@@ -469,6 +469,7 @@
       this._undoTimer = null;
       this._countdownTimer = null;
       this._lastFeedSize = null;
+      this._customSize = null;
     }
     disconnectedCallback() {
       if (this._timer) { clearTimeout(this._timer); this._timer = null; }
@@ -1543,7 +1544,8 @@
       if (!sizes.length) sizes = [1, 2, 3, 5];
       var favourite = parseInt(this._config.quick_feed_default, 10);
       if (isNaN(favourite)) favourite = 2;
-      var customSize = this._lastFeedSize || favourite;
+      if (this._customSize == null) this._customSize = this._lastFeedSize || favourite;
+      var customSize = this._customSize;
       var levelClass = function(n) {
         if (n <= 2) return 'level-low';
         if (n <= 4) return 'level-normal';
@@ -1602,6 +1604,7 @@
       var valEl = container.querySelector('#c-val');
       var btn = container.querySelector('#feed-now-btn');
       var updateCustom = function() {
+        self._customSize = customSize;
         valEl.textContent = customSize;
         btn.textContent = 'Feed now (' + customSize + ' por. ~' + Math.round(customSize*portionWeight) + 'g)';
       };
