@@ -64,7 +64,9 @@
             { key: 'max_schedules', label: 'Max schedules',       type: 'number', default: 6 },
             { key: 'quick_feed_default', label: 'Favourite quick portion', type: 'number', default: 2,
               note: { type: 'template', text: 'Portion size highlighted as favourite in the Feed-now grid (gets accent background + star).' } },
-            { key: 'vibration_enabled', label: 'Haptic feedback', type: 'checkbox', default: true },
+            { key: 'vibration_enabled', label: 'Haptic feedback (vibration)', type: 'checkbox', default: true },
+            { key: 'sound_enabled', label: 'Sound feedback (click)', type: 'checkbox', default: false,
+              note: { type: 'template', text: 'Plays a short click sound on button press. Off by default; useful on iOS where vibration API is blocked.' } },
             { key: 'mqtt_retain',   label: 'MQTT retain flag',    type: 'checkbox', default: false,
               note: { type: 'template', text: 'Adds <code>retain: true</code> to MQTT publishes so broker keeps last schedule across restarts.' } },
           ]
@@ -482,9 +484,10 @@
         icon: '🐱',
         topic: 'zigbee2mqtt/Feeder/set',
         max_schedules: 6,
-        quick_feed_sizes: [1, 2, 3, 5],
+        quick_feed_sizes: [1, 2, 3, 4],
         quick_feed_default: 2,
         vibration_enabled: true,
+        sound_enabled: false,
         mqtt_retain: false,
         label_schedule:       'Schedule',
         label_feed:           'Feed now',
@@ -651,8 +654,6 @@
       return { val: String(Math.round(n)), unit: 'g' };
     }
     _clickFeedback() {
-      if (this._config.vibration_enabled === false) return;
-      if (navigator.vibrate) return;
       try {
         var Ctx = window.AudioContext || window.webkitAudioContext;
         if (!Ctx) return;
@@ -747,10 +748,10 @@
       if (confirmBtn && confirmBtn.focus) confirmBtn.focus();
     }
     _vibrate(pattern) {
-      if (this._config.vibration_enabled === false) return;
-      if (navigator.vibrate) {
+      if (this._config.vibration_enabled !== false && navigator.vibrate) {
         navigator.vibrate(pattern || 10);
-      } else {
+      }
+      if (this._config.sound_enabled === true) {
         this._clickFeedback();
       }
     }
@@ -1668,6 +1669,7 @@
         '<div class="info-grid">' +
           modeRow +
           '<div class="info-row"><div class="info-row-label">Haptic feedback</div><div class="toggle ' + (this._config.vibration_enabled !== false ? 'on' : '') + '" id="toggle-vibration" role="switch" aria-checked="' + (this._config.vibration_enabled !== false) + '"><div class="toggle-thumb"></div></div></div>' +
+          '<div class="info-row"><div class="info-row-label">Sound feedback</div><div class="toggle ' + (this._config.sound_enabled === true ? 'on' : '') + '" id="toggle-sound" role="switch" aria-checked="' + (this._config.sound_enabled === true) + '"><div class="toggle-thumb"></div></div></div>' +
           '<div class="info-row"><div class="info-row-label">Portion weight</div>' +
             '<div class="info-row-val" style="display:flex;align-items:center;gap:8px;">' +
               '<button class="step-btn" id="pw-minus" style="width:36px;height:36px;font-size:14px;" aria-label="Decrease">−</button>' +
@@ -1714,7 +1716,16 @@
           var isOn = this.classList.toggle('on');
           this.setAttribute('aria-checked', isOn);
           self._config.vibration_enabled = isOn;
-          self._vibrate(isOn ? [10, 20, 10] : null);
+          if (isOn && navigator.vibrate) navigator.vibrate([10, 20, 10]);
+        });
+      }
+      var soundToggle = container.querySelector('#toggle-sound');
+      if (soundToggle) {
+        soundToggle.addEventListener('click', function() {
+          var isOn = this.classList.toggle('on');
+          this.setAttribute('aria-checked', isOn);
+          self._config.sound_enabled = isOn;
+          if (isOn) self._clickFeedback();
         });
       }
       var lockEntity = this._e('entity_child_lock');
