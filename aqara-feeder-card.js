@@ -62,8 +62,8 @@
               note: { type: 'template', text: 'Emoji: just paste the character. Image: provide the full path <code>/config/www/images/your_icon.png</code>. For a 3D effect use a PNG with transparent background — the icon will "float" above the circle.' } },
             { key: 'topic',         label: 'MQTT topic (set)',    type: 'text',   default: 'zigbee2mqtt/Feeder/set' },
             { key: 'max_schedules', label: 'Max schedules',       type: 'number', default: 6 },
-            { key: 'quick_feed_default', label: 'Favourite quick portion', type: 'number', default: 2,
-              note: { type: 'template', text: 'Portion size highlighted as favourite in the Feed-now grid (gets accent background + star).' } },
+            { key: 'quick_feed_default', label: 'Favourite quick portion', type: 'number', default: 0,
+              note: { type: 'template', text: 'Portion size highlighted as favourite in the Feed-now grid (accent background + star). Set <code>0</code> to disable.' } },
             { key: 'vibration_enabled', label: 'Haptic feedback (vibration)', type: 'checkbox', default: true },
             { key: 'sound_enabled', label: 'Sound feedback (click)', type: 'checkbox', default: false,
               note: { type: 'template', text: 'Plays a short click sound on button press. Off by default; useful on iOS where vibration API is blocked.' } },
@@ -486,7 +486,7 @@
         topic: 'zigbee2mqtt/Feeder/set',
         max_schedules: 6,
         quick_feed_sizes: [1, 2, 3, 4],
-        quick_feed_default: 2,
+        quick_feed_default: 0,
         vibration_enabled: true,
         sound_enabled: false,
         mqtt_retain: false,
@@ -1543,7 +1543,7 @@
       sizes = sizes.map(function(n) { return parseInt(n, 10); }).filter(function(n) { return !isNaN(n) && n > 0 && n <= 10; });
       if (!sizes.length) sizes = [1, 2, 3, 5];
       var favourite = parseInt(this._config.quick_feed_default, 10);
-      if (isNaN(favourite)) favourite = 2;
+      if (isNaN(favourite) || favourite <= 0) favourite = null;
       if (this._customSize == null) this._customSize = this._lastFeedSize || 1;
       var customSize = this._customSize;
       var levelClass = function(n) {
