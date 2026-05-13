@@ -43,12 +43,16 @@
 
 ## Screenshots
 
-<p align="center">
-  <img src="screenshots/schedule.png" width="360" alt="Schedule tab">
-  <img src="screenshots/feed-now.png" width="360" alt="Feed now tab">
-  <img src="screenshots/settings.png" width="360" alt="Settings tab">
-  <img src="screenshots/confirmation.png" width="360" alt="Confirmation popup">
-</p>
+<table align="center">
+  <tr>
+    <td><img src="screenshots/schedule.png" width="100%" alt="Schedule tab"></td>
+    <td><img src="screenshots/feed-now.png" width="100%" alt="Feed now tab"></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/settings.png" width="100%" alt="Settings tab"></td>
+    <td><img src="screenshots/confirmation.png" width="100%" alt="Confirmation popup"></td>
+  </tr>
+</table>
 
 ## Requirements
 
