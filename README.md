@@ -44,10 +44,10 @@
 ## Screenshots
 
 <p align="center">
-  <img src="screenshots/242shots_so.png" width="100%" alt="Mockup 1">
+  <img src="screenshots/436shots_so.png" width="100%" alt="Mockup 1">
 </p>
 <p align="center">
-  <img src="screenshots/897shots_so.png" width="100%" alt="Mockup 2">
+  <img src="screenshots/147shots_so.png" width="100%" alt="Mockup 2">
 </p>
 
 ## Requirements
