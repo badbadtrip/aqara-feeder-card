@@ -932,13 +932,8 @@
         '@keyframes badgePulse{0%,100%{opacity:.7}50%{opacity:1}}' +
         '.apply-btn.pulse{animation:applyPulse 1.6s ease-in-out infinite;}' +
         '@keyframes applyPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,218,120,.5)}50%{box-shadow:0 0 0 6px rgba(255,218,120,0)}}' +
-        '.add-btn.danger,.add-btn.warn{flex:0 0 auto;padding:11px 13px;display:flex;align-items:center;justify-content:center;}' +
-        '.add-btn.danger{color:#636774;}' +
-        '.add-btn.danger:hover{color:' + R + ';border-color:' + R + ';background:rgba(255,145,138,.08);}' +
-        '.add-btn.danger.holding,.sched-delete.holding{animation:holdProgress .55s linear forwards;}' +
-        '.add-btn.warn{color:' + O + ';border-color:' + O + ';}' +
+        '.add-btn.warn{flex:0 0 auto;padding:11px 13px;display:flex;align-items:center;justify-content:center;color:' + O + ';border-color:' + O + ';}' +
         '.add-btn.warn:hover{background:rgba(255,181,129,.12);}' +
-        '@keyframes holdProgress{0%{transform:scale(1)}100%{transform:scale(0.92);background:rgba(255,145,138,.25)}}' +
         '.sched-skeleton{display:flex;align-items:center;gap:12px;background:' + BG1 + ';border-radius:16px;padding:12px 14px;overflow:hidden;}' +
         '.skel-dot,.skel-time,.skel-line,.skel-status{background:linear-gradient(90deg,' + BG2 + ' 0%,#3a3f4d 50%,' + BG2 + ' 100%);background-size:200% 100%;animation:skelShimmer 1.4s ease-in-out infinite;border-radius:6px;}' +
         '.skel-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}' +
@@ -1270,51 +1265,31 @@
           self._openEditPopup(item.i);
         });
       });
-      var attachLongPress = function(btn, onTrigger) {
-        var holdTimer = null;
-        var fired = false;
-        var start = function(ev) {
-          ev.preventDefault();
-          fired = false;
-          btn.classList.add('holding');
-          holdTimer = setTimeout(function() {
-            fired = true;
-            btn.classList.remove('holding');
-            self._vibrate([20, 30, 20]);
-            onTrigger();
-          }, 550);
-        };
-        var cancel = function() {
-          btn.classList.remove('holding');
-          if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-        };
-        btn.addEventListener('pointerdown', start);
-        btn.addEventListener('pointerup', cancel);
-        btn.addEventListener('pointerleave', cancel);
-        btn.addEventListener('pointercancel', cancel);
-        btn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          if (!fired) self._showSnackbar('Hold to delete');
-        });
-      };
       container.querySelectorAll('.sched-delete').forEach(function(btn) {
         var sortedIdx = parseInt(btn.dataset.del, 10);
         var item = indexed[sortedIdx];
         if (!item) return;
         var origIdx = item.i;
-        attachLongPress(btn, function() {
-          var removed = self._schedules[origIdx];
-          if (!removed) return;
-          self._undo = { schedule: removed, index: origIdx };
-          self._schedules = self._schedules.filter(function(_, i) { return i !== origIdx; });
-          self._markPending();
-          self._renderTab('schedule');
-          self._showSnackbar('Feeding removed', 'Undo', function() {
-            if (!self._undo) return;
-            var u = self._undo;
-            self._schedules.splice(Math.min(u.index, self._schedules.length), 0, u.schedule);
-            self._undo = null;
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          self._vibrate(10);
+          var s = self._schedules[origIdx];
+          if (!s) return;
+          var timeStr = self._pad(s.hour) + ':' + self._pad(s.minute);
+          self._showDeleteConfirm(timeStr, function() {
+            var removed = self._schedules[origIdx];
+            if (!removed) return;
+            self._undo = { schedule: removed, index: origIdx };
+            self._schedules = self._schedules.filter(function(_, i) { return i !== origIdx; });
+            self._markPending();
             self._renderTab('schedule');
+            self._showSnackbar('Feeding removed', 'Undo', function() {
+              if (!self._undo) return;
+              var u = self._undo;
+              self._schedules.splice(Math.min(u.index, self._schedules.length), 0, u.schedule);
+              self._undo = null;
+              self._renderTab('schedule');
+            });
           });
         });
       });
@@ -1363,6 +1338,52 @@
           }, 1500);
         });
       }
+    }
+    _showDeleteConfirm(timeStr, onConfirm) {
+      var self = this;
+      var R = this._config.color_danger || 'rgb(255,145,138)';
+      var existing = this._shadow.querySelector('.popup-overlay');
+      if (existing) existing.remove();
+      var confirmed = false;
+      var overlay = document.createElement('div');
+      overlay.className = 'popup-overlay';
+      overlay.setAttribute('tabindex', '-1');
+      var dismiss = function() {
+        if (overlay.parentNode) overlay.remove();
+        document.removeEventListener('keydown', onKey, true);
+      };
+      var confirmAction = function() {
+        if (confirmed) return;
+        confirmed = true;
+        if (overlay.parentNode) overlay.remove();
+        document.removeEventListener('keydown', onKey, true);
+        onConfirm();
+      };
+      var onKey = function(e) {
+        if (e.key === 'Escape') { e.preventDefault(); dismiss(); }
+        else if (e.key === 'Enter') { e.preventDefault(); confirmAction(); }
+      };
+      document.addEventListener('keydown', onKey, true);
+      overlay.addEventListener('click', function(e) { if (e.target === overlay) dismiss(); });
+      var popup = document.createElement('div');
+      popup.className = 'popup';
+      popup.innerHTML =
+        '<div class="popup-title">Remove feeding</div>' +
+        '<button class="popup-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
+        '<div style="text-align:center;font-size:13px;color:#969aa6;margin-bottom:20px;">' +
+          'Remove feeding at <strong style="color:#fff;">' + timeStr + '</strong>?' +
+        '</div>' +
+        '<div class="popup-actions">' +
+          '<button class="popup-cancel" id="del-cancel-btn">Cancel</button>' +
+          '<button class="popup-save" id="del-confirm-btn" style="background:' + R + ';color:#000;">Delete</button>' +
+        '</div>';
+      overlay.appendChild(popup);
+      this._shadow.querySelector('.card').appendChild(overlay);
+      popup.querySelector('.popup-close').addEventListener('click', dismiss);
+      popup.querySelector('#del-cancel-btn').addEventListener('click', dismiss);
+      popup.querySelector('#del-confirm-btn').addEventListener('click', confirmAction);
+      var delBtn = popup.querySelector('#del-confirm-btn');
+      if (delBtn && delBtn.focus) delBtn.focus();
     }
     _showSnackbar(text, actionText, onAction) {
       var self = this;
@@ -1427,7 +1448,7 @@
       var popup = document.createElement('div');
       popup.className = 'popup';
       popup.innerHTML =
-        '<div class="popup-title">Feeding ' + (slot + 1) + '</div>' +
+        '<div class="popup-title">Edit feeding ' + self._pad(s.hour) + ':' + self._pad(s.minute) + '</div>' +
         '<button class="popup-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
         '<div class="popup-row">' +
           '<div class="popup-row-label">Time</div>' +
