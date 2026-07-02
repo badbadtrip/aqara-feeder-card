@@ -1273,24 +1273,11 @@
         btn.addEventListener('click', function(e) {
           e.stopPropagation();
           self._vibrate(10);
-          var s = self._schedules[origIdx];
-          if (!s) return;
-          var timeStr = self._pad(s.hour) + ':' + self._pad(s.minute);
-          self._showDeleteConfirm(timeStr, function() {
-            var removed = self._schedules[origIdx];
-            if (!removed) return;
-            self._undo = { schedule: removed, index: origIdx };
-            self._schedules = self._schedules.filter(function(_, i) { return i !== origIdx; });
-            self._markPending();
-            self._renderTab('schedule');
-            self._showSnackbar('Feeding removed', 'Undo', function() {
-              if (!self._undo) return;
-              var u = self._undo;
-              self._schedules.splice(Math.min(u.index, self._schedules.length), 0, u.schedule);
-              self._undo = null;
-              self._renderTab('schedule');
-            });
-          });
+          var removed = self._schedules[origIdx];
+          if (!removed) return;
+          self._schedules = self._schedules.filter(function(_, i) { return i !== origIdx; });
+          self._markPending();
+          self._renderTab('schedule');
         });
       });
       var addBtn = container.querySelector('#add-slot-btn');
@@ -1338,52 +1325,6 @@
           }, 1500);
         });
       }
-    }
-    _showDeleteConfirm(timeStr, onConfirm) {
-      var self = this;
-      var R = this._config.color_danger || 'rgb(255,145,138)';
-      var existing = this._shadow.querySelector('.popup-overlay');
-      if (existing) existing.remove();
-      var confirmed = false;
-      var overlay = document.createElement('div');
-      overlay.className = 'popup-overlay';
-      overlay.setAttribute('tabindex', '-1');
-      var dismiss = function() {
-        if (overlay.parentNode) overlay.remove();
-        document.removeEventListener('keydown', onKey, true);
-      };
-      var confirmAction = function() {
-        if (confirmed) return;
-        confirmed = true;
-        if (overlay.parentNode) overlay.remove();
-        document.removeEventListener('keydown', onKey, true);
-        onConfirm();
-      };
-      var onKey = function(e) {
-        if (e.key === 'Escape') { e.preventDefault(); dismiss(); }
-        else if (e.key === 'Enter') { e.preventDefault(); confirmAction(); }
-      };
-      document.addEventListener('keydown', onKey, true);
-      overlay.addEventListener('click', function(e) { if (e.target === overlay) dismiss(); });
-      var popup = document.createElement('div');
-      popup.className = 'popup';
-      popup.innerHTML =
-        '<div class="popup-title">Remove feeding</div>' +
-        '<button class="popup-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
-        '<div style="text-align:center;font-size:13px;color:#969aa6;margin-bottom:20px;">' +
-          'Remove feeding at <strong style="color:#fff;">' + timeStr + '</strong>?' +
-        '</div>' +
-        '<div class="popup-actions">' +
-          '<button class="popup-cancel" id="del-cancel-btn">Cancel</button>' +
-          '<button class="popup-save" id="del-confirm-btn" style="background:' + R + ';color:#000;">Delete</button>' +
-        '</div>';
-      overlay.appendChild(popup);
-      this._shadow.querySelector('.card').appendChild(overlay);
-      popup.querySelector('.popup-close').addEventListener('click', dismiss);
-      popup.querySelector('#del-cancel-btn').addEventListener('click', dismiss);
-      popup.querySelector('#del-confirm-btn').addEventListener('click', confirmAction);
-      var delBtn = popup.querySelector('#del-confirm-btn');
-      if (delBtn && delBtn.focus) delBtn.focus();
     }
     _showSnackbar(text, actionText, onAction) {
       var self = this;
