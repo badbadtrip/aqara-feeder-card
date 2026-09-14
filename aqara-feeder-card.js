@@ -471,6 +471,7 @@
       this._countdownTimer = null;
       this._lastFeedSize = null;
       this._customSize = null;
+      this._lastSig = null;
     }
     disconnectedCallback() {
       if (this._timer) { clearTimeout(this._timer); this._timer = null; }
@@ -771,6 +772,7 @@
     _render() {
       this._built = true;
       this._isLoading = false;
+      this._lastSig = null;
       var cfg = this._config;
       var Y = cfg.color_accent    || 'rgb(255,218,120)';
       var G = cfg.color_positive  || 'rgb(206,245,149)';
@@ -1085,6 +1087,7 @@
       this._renderHeader();
       this._renderStats();
       if (this._isLoading) return;
+      if (this._relevantSignature() === this._lastSig) return;
       this._renderTab(this._activeTab);
     }
     _renderHeader() {
@@ -1176,9 +1179,26 @@
     _renderTab(tab) {
       var el = this._shadow.querySelector('#tab-' + tab);
       if (!el) return;
+      this._lastSig = this._relevantSignature();
       if (tab === 'schedule') this._renderScheduleTab(el);
       else if (tab === 'feed') this._renderFeedTab(el);
       else if (tab === 'info') this._renderInfoTab(el);
+    }
+    _relevantSignature() {
+      var self = this;
+      var keys = [
+        'entity_schedule', 'entity_schedule_pretty', 'entity_portions_day', 'entity_weight_day',
+        'entity_feeding_source', 'entity_feeding_size', 'entity_portion_weight', 'entity_serving_size',
+        'entity_mode', 'entity_child_lock', 'entity_led', 'entity_error', 'entity_food_level'
+      ];
+      var parts = keys.map(function(k) { return self._state(self._e(k), ''); });
+      var updateEntity = this._e('entity_update');
+      var fw = (this._hass && updateEntity && this._hass.states[updateEntity] && this._hass.states[updateEntity].attributes.installed_version) || '';
+      parts.push(fw);
+      parts.push(this._pending ? '1' : '0');
+      parts.push(this._activeTab);
+      parts.push(String(this._schedules.length));
+      return parts.join('|');
     }
     _renderScheduleTab(container) {
       if (!container) return;
@@ -1226,7 +1246,6 @@
       indexed.sort(function(a, b) {
         return (a.s.hour * 60 + a.s.minute) - (b.s.hour * 60 + b.s.minute);
       });
-      var sortedSchedules = indexed.map(function(item) { return item.s; });
       var nextIdx = -1;
       var minDiff = Infinity;
       indexed.forEach(function(item, idx) {
