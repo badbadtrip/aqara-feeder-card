@@ -1,6 +1,6 @@
 (function () {
   console.info(
-    `%c AQARA-FEEDER-CARD %c v1.3.0 `,
+    `%c AQARA-FEEDER-CARD %c v1.4.0 `,
     'color: white; background: #f5a623; font-weight: bold;',
     'color: #f5a623; background: white; font-weight: bold;'
   );
@@ -245,7 +245,7 @@
         '.section-arrow.open{transform:rotate(180deg);}' +
         '.section-body{padding:12px 16px 16px;display:none;flex-direction:column;gap:10px;}' +
         '.section-body.open{display:flex;}' +
-        '.field-label{font-size:12px;color:var(--secondary-text-color,#888);margin-bottom:4px;}' +
+        '.field-label{display:block;font-size:12px;color:var(--secondary-text-color,#888);margin-bottom:4px;}' +
         'ha-entity-picker{display:block;}' +
         'input[type=text],input[type=number]{width:100%;padding:8px 10px;' +
           'background:var(--input-fill-color,rgba(255,255,255,.08));' +
@@ -352,8 +352,11 @@
         });
         section.fields.forEach(function(f) {
           var wrapper = document.createElement('div');
-          var lbl = document.createElement('div');
+          var fieldId = 'field-' + section.key + '-' + f.key;
+          var isSimpleInput = f.type !== 'color' && f.type !== 'entity' && f.type !== 'checkbox';
+          var lbl = document.createElement(isSimpleInput ? 'label' : 'div');
           lbl.className = 'field-label';
+          if (isSimpleInput) lbl.htmlFor = fieldId;
           lbl.textContent = f.label;
           wrapper.appendChild(lbl);
           var val = cfg[f.key] !== undefined ? cfg[f.key] : f.default;
@@ -365,15 +368,18 @@
             swatch.className = 'color-swatch';
             swatch.value = self._cssColorToHex(val || f.default);
             swatch.title = 'Pick color';
+            swatch.setAttribute('aria-label', f.label + ' color picker');
             var textInput = document.createElement('input');
             textInput.type = 'text';
             textInput.className = 'color-text';
             textInput.value = val || f.default;
             textInput.placeholder = f.default;
             textInput.spellcheck = false;
+            textInput.setAttribute('aria-label', f.label + ' hex value');
             var resetBtn = document.createElement('button');
             resetBtn.className = 'color-reset';
             resetBtn.title = 'Reset to default';
+            resetBtn.setAttribute('aria-label', 'Reset ' + f.label + ' to default');
             resetBtn.textContent = '↺';
             (function(fKey, fDefault, sw, txt) {
               sw.addEventListener('input', function() {
@@ -408,8 +414,8 @@
             });
             wrapper.appendChild(picker);
           } else if (f.type === 'checkbox') {
-            var checkboxWrapper = document.createElement('div');
-            checkboxWrapper.style.cssText = 'display:flex;align-items:center;gap:10px;';
+            var checkboxWrapper = document.createElement('label');
+            checkboxWrapper.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;';
             var chk = document.createElement('input');
             chk.type = 'checkbox';
             chk.checked = val === true || val === 'true';
@@ -426,6 +432,7 @@
           } else {
             var inp = document.createElement('input');
             inp.type = f.type === 'number' ? 'number' : 'text';
+            inp.id = fieldId;
             inp.value = val !== undefined ? val : '';
             inp.placeholder = String(f.default);
             inp.addEventListener('change', function() {
@@ -708,6 +715,22 @@
         if (sent.parentNode) sent.parentNode.removeChild(sent);
       }, 3000);
     }
+    _focusableEls(container) {
+      var list = container.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"])');
+      return Array.prototype.slice.call(list);
+    }
+    _trapTab(e, popup) {
+      var focusables = this._focusableEls(popup);
+      if (!focusables.length) return;
+      var first = focusables[0];
+      var last = focusables[focusables.length - 1];
+      var active = this._shadow.activeElement;
+      if (e.shiftKey) {
+        if (active === first || !popup.contains(active)) { e.preventDefault(); last.focus(); }
+      } else {
+        if (active === last || !popup.contains(active)) { e.preventDefault(); first.focus(); }
+      }
+    }
     _showConfirmation(size, onConfirm, onCancel) {
       var self = this;
       var G = this._config.color_positive || 'rgb(206,245,149)';
@@ -738,13 +761,17 @@
       var onKey = function(e) {
         if (e.key === 'Escape') { e.preventDefault(); dismiss(); }
         else if (e.key === 'Enter') { e.preventDefault(); confirmAction(); }
+        else if (e.key === 'Tab') { self._trapTab(e, popup); }
       };
       document.addEventListener('keydown', onKey, true);
       overlay.addEventListener('click', function(e) { if (e.target === overlay) dismiss(); });
       var popup = document.createElement('div');
       popup.className = 'popup';
+      popup.setAttribute('role', 'dialog');
+      popup.setAttribute('aria-modal', 'true');
+      popup.setAttribute('aria-labelledby', 'popup-title-confirm');
       popup.innerHTML =
-        '<div class="popup-title">Confirm feeding</div>' +
+        '<div class="popup-title" id="popup-title-confirm">Confirm feeding</div>' +
         '<button class="popup-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
         '<div style="text-align:center;font-size:13px;color:#969aa6;margin-bottom:20px;">' +
           'Will dispense <strong style="color:#fff;">' + size + ' por.</strong> (~' + grams + 'g)' +
@@ -790,11 +817,12 @@
         '.hdr-icon::before{content:"";position:absolute;inset:0;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,.08) 0%,transparent 50%);pointer-events:none;}' +
         '.hdr-icon img{width:75%;height:75%;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,.6));transform:translateZ(10px);}' +
         '.hdr-info{flex:1;min-width:0;}' +
-        '.hdr-title{font-size:15px;font-weight:600;color:#fff;}' +
+        '.hdr-title{font-size:15px;font-weight:600;color:#fff;display:flex;align-items:center;gap:6px;}' +
         '.hdr-sub{font-size:11px;color:#8f94a3;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
         '.hdr-badges{display:flex;gap:4px;align-items:center;flex-shrink:0;}' +
-        '.online-dot{width:10px;height:10px;border-radius:50%;background:rgb(206,245,149);box-shadow:0 0 0 0 rgba(206,245,149,.5);animation:pulse 2s infinite;}' +
-        '.offline-dot{width:10px;height:10px;border-radius:50%;background:#535865;}' +
+        '.hdr-status-dot{flex-shrink:0;}' +
+        '.online-dot{width:8px;height:8px;border-radius:50%;background:rgb(206,245,149);box-shadow:0 0 0 0 rgba(206,245,149,.5);animation:pulse 2s infinite;}' +
+        '.offline-dot{width:8px;height:8px;border-radius:50%;background:#9ea3b0;}' +
         '@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(206,245,149,.5)}70%{box-shadow:0 0 0 6px rgba(206,245,149,0)}100%{box-shadow:0 0 0 0 rgba(206,245,149,0)}}' +
         '.badge{padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600;}' +
         '.badge-mode{background:' + BG1 + ';color:#969aa6;}' +
@@ -827,7 +855,7 @@
         '.sched-dot.passed{background:' + Y + ';}' +
         '.sched-dot.next-d{background:' + G + ';box-shadow:0 0 8px ' + G + ';}' +
         '.sched-time{font-size:22px;font-weight:500;min-width:60px;color:#fff;}' +
-        '.sched-time.passed{color:#727893;}' +
+        '.sched-time.passed{color:#9ea3b0;}' +
         '.sched-info{flex:1;}' +
         '.sched-portions{font-size:13px;color:#fff;}' +
         '.sched-grams{font-size:10px;color:#8f94a3;margin-top:1px;}' +
@@ -909,6 +937,7 @@
         '.info-row-label{font-size:12px;color:#8f94a3;}' +
         '.info-row-val{font-size:12px;color:#fff;font-weight:500;text-align:right;}' +
         '.toggle{width:36px;height:20px;border-radius:10px;background:' + BG2 + ';position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}' +
+        '.toggle::before{content:"";position:absolute;top:-12px;bottom:-12px;left:-4px;right:-4px;}' +
         '.toggle.on{background:' + G + ';}' +
         '.toggle-thumb{width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .2s;}' +
         '.toggle.on .toggle-thumb{left:18px;}' +
@@ -1011,21 +1040,21 @@
           '<div class="hdr">' +
             '<div class="hdr-icon">' + iconHtml + '</div>' +
             '<div class="hdr-info">' +
-              '<div class="hdr-title">' + (this._config.title || 'Feeder') + '</div>' +
+              '<div class="hdr-title"><span class="hdr-status-dot offline-dot" id="hdr-status-dot"></span>' + (this._config.title || 'Feeder') + '</div>' +
               '<div class="hdr-sub" id="hdr-sub" title="">Loading...</div>' +
             '</div>' +
             '<div class="hdr-badges" id="hdr-badges"></div>' +
           '</div>' +
           '<div class="stats" id="stats-row"></div>' +
-          '<div class="tabs">' +
-            '<button class="tab-btn active" data-tab="schedule"><div class="tab-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><span class="tab-label">' + this._lbl('label_schedule', 'Schedule') + '</span></button>' +
-            '<button class="tab-btn" data-tab="feed"><div class="tab-icon"><svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div><span class="tab-label">' + this._lbl('label_feed', 'Feed now') + '</span></button>' +
-            '<button class="tab-btn" data-tab="info"><div class="tab-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><span class="tab-label">' + this._lbl('label_settings', 'Settings') + '</span></button>' +
+          '<div class="tabs" role="tablist">' +
+            '<button class="tab-btn active" id="tab-btn-schedule" data-tab="schedule" role="tab" aria-selected="true" aria-controls="tab-schedule"><div class="tab-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><span class="tab-label">' + this._lbl('label_schedule', 'Schedule') + '</span></button>' +
+            '<button class="tab-btn" id="tab-btn-feed" data-tab="feed" role="tab" aria-selected="false" aria-controls="tab-feed"><div class="tab-icon"><svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div><span class="tab-label">' + this._lbl('label_feed', 'Feed now') + '</span></button>' +
+            '<button class="tab-btn" id="tab-btn-info" data-tab="info" role="tab" aria-selected="false" aria-controls="tab-info"><div class="tab-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><span class="tab-label">' + this._lbl('label_settings', 'Settings') + '</span></button>' +
           '</div>' +
           '<div class="content">' +
-            '<div id="tab-schedule" class="tab-pane"></div>' +
-            '<div id="tab-feed" class="tab-pane" style="display:none"></div>' +
-            '<div id="tab-info" class="tab-pane" style="display:none"></div>' +
+            '<div id="tab-schedule" class="tab-pane" role="tabpanel" aria-labelledby="tab-btn-schedule"></div>' +
+            '<div id="tab-feed" class="tab-pane" role="tabpanel" aria-labelledby="tab-btn-feed" style="display:none"></div>' +
+            '<div id="tab-info" class="tab-pane" role="tabpanel" aria-labelledby="tab-btn-info" style="display:none"></div>' +
           '</div>' +
         '</div>';
       var styleEl = document.createElement('style');
@@ -1041,7 +1070,9 @@
         if (tabs.indexOf(tab) === -1) return;
         self._isLoading = false;
         self._shadow.querySelectorAll('.tab-btn').forEach(function(b) {
-          b.classList.toggle('active', b.dataset.tab === tab);
+          var isActive = b.dataset.tab === tab;
+          b.classList.toggle('active', isActive);
+          b.setAttribute('aria-selected', isActive);
         });
         self._activeTab = tab;
         tabs.forEach(function(t) {
@@ -1108,8 +1139,13 @@
         sub.textContent = text;
       }
       sub.title = sub.textContent;
+      var statusDot = this._shadow.querySelector('#hdr-status-dot');
+      if (statusDot) {
+        statusDot.classList.toggle('online-dot', online);
+        statusDot.classList.toggle('offline-dot', !online);
+        statusDot.title = online ? 'Online' : 'Offline';
+      }
       var parts = [];
-      parts.push(online ? '<div class="online-dot"></div>' : '<div class="offline-dot"></div>');
       if (online && mode === 'manual') parts.push('<span class="badge badge-mode">Manual</span>');
       if (this._pending) parts.push('<span class="badge badge-pending" title="Unsent local changes">● Pending</span>');
       if (error) parts.push('<span class="badge badge-error">Error</span>');
@@ -1127,11 +1163,17 @@
               var bar = document.createElement('div');
               bar.id = 'food-bar';
               bar.className = 'food-bar ' + levelClass;
+              bar.setAttribute('role', 'progressbar');
+              bar.setAttribute('aria-valuemin', '0');
+              bar.setAttribute('aria-valuemax', '100');
+              bar.setAttribute('aria-valuenow', Math.round(pct));
+              bar.setAttribute('aria-label', 'Food level');
               bar.innerHTML = '<div class="food-bar-label">Food level</div><div class="food-bar-track"><div class="food-bar-fill" style="width:' + pct + '%;"></div></div><div class="food-bar-val">' + Math.round(pct) + '%</div>';
               stats.parentNode.insertBefore(bar, stats);
             }
           } else {
             foodBar.className = 'food-bar ' + levelClass;
+            foodBar.setAttribute('aria-valuenow', Math.round(pct));
             var fill = foodBar.querySelector('.food-bar-fill');
             var val = foodBar.querySelector('.food-bar-val');
             if (fill) fill.style.width = pct + '%';
@@ -1275,7 +1317,7 @@
             '</div>' +
             '<span class="sched-status ' + statusClass + '">' + statusText + '</span>' +
             '<span class="sched-edit-hint"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>' +
-            '<button class="sched-delete" data-del="' + idx + '" title="Remove"><div class="sched-delete-inner"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></button>' +
+            '<button class="sched-delete" data-del="' + idx + '" title="Remove" aria-label="Remove ' + self._pad(s.hour) + ':' + self._pad(s.minute) + ' feeding"><div class="sched-delete-inner"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></button>' +
           '</div>';
       });
       html += '</div>';
@@ -1285,7 +1327,7 @@
         html += '<button class="add-btn" id="add-slot-btn">+ Add</button>';
       }
       if (diverges) {
-        html += '<button class="add-btn warn" id="sync-btn" title="Reload from feeder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>';
+        html += '<button class="add-btn warn" id="sync-btn" title="Reload from feeder" aria-label="Reload schedule from feeder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>';
       }
       html += '<button class="apply-btn' + (this._pending ? ' pulse' : '') + '" id="apply-btn">' + (this._pending ? 'Send changes' : 'Send to feeder') + '</button>';
       html += '</div>';
@@ -1436,20 +1478,24 @@
       var onKey = function(e) {
         if (e.key === 'Escape') { e.preventDefault(); dismiss(); }
         else if (e.key === 'Enter' && e.target && e.target.tagName !== 'BUTTON') { e.preventDefault(); saveBtn.click(); }
+        else if (e.key === 'Tab') { self._trapTab(e, popup); }
       };
       document.addEventListener('keydown', onKey, true);
       overlay.addEventListener('click', function(e) { if (e.target === overlay) dismiss(); });
       var popup = document.createElement('div');
       popup.className = 'popup';
+      popup.setAttribute('role', 'dialog');
+      popup.setAttribute('aria-modal', 'true');
+      popup.setAttribute('aria-labelledby', 'popup-title-edit');
       popup.innerHTML =
-        '<div class="popup-title">Edit feeding ' + self._pad(s.hour) + ':' + self._pad(s.minute) + '</div>' +
+        '<div class="popup-title" id="popup-title-edit">Edit feeding ' + self._pad(s.hour) + ':' + self._pad(s.minute) + '</div>' +
         '<button class="popup-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
         '<div class="popup-row">' +
           '<div class="popup-row-label">Time</div>' +
           '<div class="time-inputs">' +
-            '<input class="num-input" id="p-hour" type="number" min="0" max="23" inputmode="numeric" value="' + Math.round(hour) + '">' +
+            '<input class="num-input" id="p-hour" type="number" min="0" max="23" inputmode="numeric" aria-label="Hour" value="' + Math.round(hour) + '">' +
             '<span class="time-sep">:</span>' +
-            '<input class="num-input" id="p-min" type="number" min="0" max="59" inputmode="numeric" value="' + Math.round(minute) + '">' +
+            '<input class="num-input" id="p-min" type="number" min="0" max="59" inputmode="numeric" aria-label="Minute" value="' + Math.round(minute) + '">' +
           '</div>' +
           '<div class="popup-warn" id="p-warn" style="display:none;"></div>' +
         '</div>' +
@@ -1540,6 +1586,7 @@
         setTimeout(function() { self._renderTab('schedule'); }, 400);
       });
       validate();
+      if (hourInput && hourInput.focus) hourInput.focus();
     }
     _renderFeedTab(container) {
       if (!container) return;
