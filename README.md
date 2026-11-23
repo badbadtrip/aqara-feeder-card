@@ -453,18 +453,32 @@ Issues and pull requests are welcome.
 
 **Local development:**
 
+The source lives in `src/` as small vanilla-JS modules. [esbuild](https://esbuild.github.io/) bundles them into the single `aqara-feeder-card.js` that HACS and Home Assistant load. **Don't edit `aqara-feeder-card.js` by hand.** Edit `src/`, rebuild, and commit both. CI fails if the bundle is out of date.
+
 ```bash
-# Clone the repo
 git clone https://github.com/badbadtrip/aqara-feeder-card.git
 cd aqara-feeder-card
+npm install
 
-# Copy the card file to your HA config www folder
+npm run build   # build aqara-feeder-card.js once
+npm run watch   # rebuild on every change
+
+# Copy the bundle to Home Assistant, then reload the resource and hard-refresh the browser
 cp aqara-feeder-card.js /path/to/homeassistant/config/www/
-
-# After editing, reload the resource in HA and hard-refresh the browser
 ```
 
-There is no build step — the card is a single vanilla JS file.
+| Path | What's inside |
+| --- | --- |
+| `src/index.js` | Entry point: registers the custom elements |
+| `src/defaults.js` | Default config |
+| `src/card/card.js` | Card lifecycle, layout, tab switching |
+| `src/card/state.js` | Schedule state, MQTT publishing, feeding |
+| `src/card/header.js` | Header, status, countdown, stats row |
+| `src/card/tabs/*.js` | Schedule / Feed now / Settings tabs |
+| `src/card/dialogs.js` | Feed confirmation and schedule-slot editor |
+| `src/card/feedback.js` | Vibration, sound, snackbar |
+| `src/card/styles.js` | Card CSS |
+| `src/editor/*` | Visual config editor |
 
 [![GitHub](https://img.shields.io/badge/GitHub-Issues-green?logo=github&style=for-the-badge)](https://github.com/badbadtrip/aqara-feeder-card/issues)
 

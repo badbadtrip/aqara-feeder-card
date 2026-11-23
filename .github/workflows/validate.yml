@@ -13,3 +13,15 @@ jobs:
       - uses: hacs/action@main
         with:
           category: plugin
+
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Bundle is built from src/
+        run: npm run check

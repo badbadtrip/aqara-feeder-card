@@ -1,4 +1,5 @@
 {
   "name": "Aqara Feeder Card",
+  "filename": "aqara-feeder-card.js",
   "render_readme": true
 }
