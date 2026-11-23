@@ -21,7 +21,6 @@
 <p align="center">
   <a href="#installation">Installation</a> &bull;
   <a href="#configuration-reference">Configuration</a> &bull;
-  <a href="#️-required-template-sensors">Template sensors</a> &bull;
   <a href="#full-yaml-example">Full example</a> &bull;
   <a href="#troubleshooting">Troubleshooting</a> &bull;
   <a href="#contributing">Contributing</a>
@@ -167,9 +166,9 @@ Find them at **Settings → Devices & Services → Zigbee2MQTT → your feeder**
 | Key | Default | Source |
 | --- | --- | --- |
 | `entity_schedule` | `sensor.feeder_schedule` | Auto (Z2M) |
-| `entity_schedule_pretty` | `sensor.feeder_schedule_pretty` | ⚠️ Template — see below |
-| `entity_portions_day` | `sensor.feeder_portions_per_day` | ⚠️ Template — see below |
-| `entity_weight_day` | `sensor.feeder_weight_per_day` | ⚠️ Template — see below |
+| `entity_schedule_pretty` | _(empty)_ | Optional |
+| `entity_portions_day` | `sensor.feeder_portions_per_day` | Auto (Z2M) |
+| `entity_weight_day` | `sensor.feeder_weight_per_day` | Auto (Z2M) |
 | `entity_portion_weight` | `number.feeder_portion_weight` | Auto (Z2M) |
 | `entity_serving_size` | `number.feeder_serving_size` | Auto (Z2M) |
 | `entity_feeding_source` | `sensor.feeder_feeding_source` | Auto (Z2M) |
@@ -184,138 +183,14 @@ Find them at **Settings → Devices & Services → Zigbee2MQTT → your feeder**
 
 ---
 
-## ⚠️ Required: Template sensors
+## No extra sensors needed
 
-> [!IMPORTANT]
-> **The card will not work correctly without these 3 entities.**  
-> They are not created by Zigbee2MQTT — you must add them to your Home Assistant config manually before using the card.
+Everything the card shows comes from entities that Zigbee2MQTT creates for the feeder. You don't need template sensors, `history_stats` or helpers.
 
-<details>
-<summary><b>sensor.feeder_schedule_pretty</b></summary>
+Optional extras:
 
-<br>
-
-Formats the raw schedule JSON into a human-readable string shown in the card header (e.g. `08:00 - 2 por. | 18:00 - 3 por.`).
-
-Add to your `template.yaml` (or under `template:` in `configuration.yaml`):
-
-```yaml
-- sensor:
-    - name: "Feeder Schedule (pretty)"
-      unique_id: feeder_schedule_pretty
-      icon: mdi:calendar-clock
-      state: >-
-        {% set raw = states('sensor.feeder_schedule') -%}
-        {% if raw in ['unknown','unavailable','none',''] -%}
-        unavailable
-        {%- else -%}
-        {% set tuples = raw | regex_findall("hour'\\s*:\\s*(\\d+)\\s*,\\s*'minute'\\s*:\\s*(\\d+)\\s*,\\s*'size'\\s*:\\s*(\\d+)") -%}
-        {%- if tuples | length == 0 -%}
-        unavailable
-        {%- else -%}
-        {%- for t in tuples -%}
-        {{ "%02d:%02d - %d por." | format(t[0]|int, t[1]|int, t[2]|int) }}{% if not loop.last %} | {% endif %}
-        {%- endfor -%}
-        {%- endif -%}
-        {%- endif -%}
-```
-
-> **Note:** `sensor.feeder_schedule` is the raw entity created by Zigbee2MQTT. If your feeder's entity has a different ID, update the `states(...)` call above.
-
-</details>
-
-<details>
-<summary><b>sensor.feeder_portions_per_day</b></summary>
-
-<br>
-
-Counts the number of times the feeder dispensed food today. Uses the [`history_stats`](https://www.home-assistant.io/integrations/history_stats/) integration included in Home Assistant by default.
-
-Add to `configuration.yaml`:
-
-```yaml
-sensor:
-  - platform: history_stats
-    name: "Feeder Portions Per Day"
-    unique_id: feeder_portions_per_day
-    entity_id: sensor.feeder_feeding_source
-    state: "schedule"
-    type: count
-    start: "{{ today_at('00:00') }}"
-    end: "{{ now() }}"
-
-  # If you also want to count manual feedings, add a second sensor:
-  - platform: history_stats
-    name: "Feeder Portions Per Day (manual)"
-    unique_id: feeder_portions_per_day_manual
-    entity_id: sensor.feeder_feeding_source
-    state: "manual"
-    type: count
-    start: "{{ today_at('00:00') }}"
-    end: "{{ now() }}"
-```
-
-> **Recommended approach:** use `history_stats` — it is simpler, survives restarts, and resets automatically at midnight.
-
-<details>
-<summary>Alternative: template sensor (all feeding sources)</summary>
-
-<br>
-
-```yaml
-# In template.yaml
-- trigger:
-    - trigger: state
-      entity_id: sensor.feeder_feeding_size
-  sensor:
-    - name: "Feeder Portions Per Day"
-      unique_id: feeder_portions_per_day
-      state: >
-        {% set today = now().date() | string %}
-        {% if states('sensor.feeder_portions_per_day') == 'unknown'
-              or this.attributes.get('last_reset_date','') != today %}
-          1
-        {% else %}
-          {{ (states('sensor.feeder_portions_per_day') | int(0)) + 1 }}
-        {% endif %}
-      attributes:
-        last_reset_date: "{{ now().date() | string }}"
-```
-
-</details>
-
-</details>
-
-<details>
-<summary><b>sensor.feeder_weight_per_day</b></summary>
-
-<br>
-
-Calculates total grams dispensed today: `portions_today × grams_per_portion`.  
-Depends on `sensor.feeder_portions_per_day` and `number.feeder_portion_weight` (both must exist).
-
-Add to `template.yaml`:
-
-```yaml
-- sensor:
-    - name: "Feeder Weight Per Day"
-      unique_id: feeder_weight_per_day
-      unit_of_measurement: "g"
-      icon: mdi:weight-gram
-      state: >
-        {% set portions = states('sensor.feeder_portions_per_day') | int(0) %}
-        {% set grams = states('number.feeder_portion_weight') | float(0) %}
-        {{ (portions * grams) | round(0) | int }}
-```
-
-</details>
-
-### Applying changes
-
-After adding any of the above, reload the relevant config without restarting HA:
-
-- **Developer Tools → YAML → Reload Template Entities** — for `template.yaml` changes
-- **Developer Tools → YAML → Reload All YAML** — for `configuration.yaml` changes (e.g. `history_stats`)
+- `entity_food_level`: any 0–100 % sensor, shown as a food-level bar in the header.
+- `entity_schedule_pretty`: header text used only while the feeder schedule is unavailable. Older versions of this card required it. Existing configs keep working.
 
 ---
 
@@ -350,7 +225,6 @@ label_status_passed: Passed
 label_status_next: Next
 label_status_pending: Pending
 entity_schedule: sensor.feeder_schedule
-entity_schedule_pretty: sensor.feeder_schedule_pretty
 entity_portions_day: sensor.feeder_portions_per_day
 entity_weight_day: sensor.feeder_weight_per_day
 entity_portion_weight: number.feeder_portion_weight
@@ -402,11 +276,10 @@ zigbee2mqtt/Feeder/set
 
 <br>
 
-The stats bar requires all three template sensors to exist and have valid states. Check:
+Both values come straight from Zigbee2MQTT (`portions_per_day`, `weight_per_day`), so nothing has to be created in HA. If they show `-`:
 
-- `sensor.feeder_portions_per_day` — must be created via `history_stats` or the trigger-based template.
-- `sensor.feeder_weight_per_day` — depends on `sensor.feeder_portions_per_day` and `number.feeder_portion_weight`. If either is `unknown`, the result will be `0`.
-- After adding or changing `configuration.yaml`, use **Developer Tools → YAML → Reload All YAML**.
+- Check that the entities in the card config match your feeder: **Settings → Devices & Services → Zigbee2MQTT → your feeder**.
+- The feeder reports them after its next feeding. Right after pairing or a Z2M restart they can be `unknown` until then.
 
 </details>
 
@@ -432,11 +305,11 @@ The stats bar requires all three template sensors to exist and have valid states
 </details>
 
 <details>
-<summary><b>Schedule pretty sensor shows "unavailable"</b></summary>
+<summary><b>Feeder doesn't dispense on schedule</b></summary>
 
 <br>
 
-The regex in `sensor.feeder_schedule_pretty` parses the raw JSON from `sensor.feeder_schedule`. If the feeder returns a slightly different format, the regex may not match. Open **Developer Tools → States**, find `sensor.feeder_schedule`, and compare its state value to the expected format: `[{'hour': 8, 'minute': 0, 'size': 2}, ...]`.
+Check the feeder **mode**. In `manual` mode the feeder ignores its schedule completely: the schedule is still listed, but nothing gets dispensed. The card shows a **Schedule is paused** banner on the Schedule tab in this case. Tap **Turn on**, or set `select.feeder_mode` to `schedule`.
 
 </details>
 

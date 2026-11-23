@@ -27,7 +27,7 @@ export function defaultConfig() {
     color_block_bg:   '#1c1f27',
     color_block_bg2:  '#262a35',
     entity_schedule:         'sensor.feeder_schedule',
-    entity_schedule_pretty:  'sensor.feeder_schedule_pretty',
+    entity_schedule_pretty:  '',
     entity_portions_day:     'sensor.feeder_portions_per_day',
     entity_weight_day:       'sensor.feeder_weight_per_day',
     entity_portion_weight:   'number.feeder_portion_weight',

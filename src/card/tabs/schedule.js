@@ -53,7 +53,7 @@ export class ScheduleTab {
       var diff = sm > nowMin ? sm - nowMin : sm + 1440 - nowMin;
       if (diff < minDiff) { minDiff = diff; nextIdx = idx; }
     });
-    var html = '<div class="schedule-list" id="sched-list">';
+    var html = this._manualModeBanner() + '<div class="schedule-list" id="sched-list">';
     indexed.forEach(function(item, idx) {
       var s = item.s;
       var sm = s.hour * 60 + s.minute;
@@ -90,6 +90,7 @@ export class ScheduleTab {
     html += '<button class="apply-btn' + (this._pending ? ' pulse' : '') + '" id="apply-btn">' + (this._pending ? 'Send changes' : 'Send to feeder') + '</button>';
     html += '</div>';
     container.innerHTML = html;
+    this._bindManualModeBanner(container);
     container.querySelectorAll('.sched-item').forEach(function(el) {
       el.addEventListener('keydown', function(e) {
         if (e.target !== el) return;
@@ -178,5 +179,31 @@ export class ScheduleTab {
         }, 1500);
       });
     }
+  }
+  // In "manual" mode the feeder ignores its schedule entirely, so the list
+  // above would look fine while nothing gets dispensed. Make that loud.
+  _manualModeBanner() {
+    if (this._state(this._e('entity_mode'), '') !== 'manual') return '';
+    return '<div class="mode-warn" role="alert">' +
+      '<div class="mode-warn-text"><strong>Schedule is paused</strong>' +
+      'The feeder is in Manual mode and will not dispense on schedule.</div>' +
+      '<button class="mode-warn-btn" id="enable-schedule-btn">Turn on</button>' +
+    '</div>';
+  }
+  _bindManualModeBanner(container) {
+    var self = this;
+    var btn = container.querySelector('#enable-schedule-btn');
+    var modeEntity = this._e('entity_mode');
+    if (!btn || !modeEntity) return;
+    btn.addEventListener('click', function() {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      self._vibrate([10, 20, 10]);
+      self._hass.callService('select', 'select_option', { entity_id: modeEntity, option: 'schedule' })
+        .catch(function() {
+          btn.disabled = false;
+          self._showSnackbar('Failed to switch feeder mode');
+        });
+    });
   }
 }

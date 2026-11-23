@@ -64,10 +64,10 @@ export function editorSections() {
         },
         {
           key: 'entity_schedule_pretty',
-          label: 'Schedule (human-readable)',
+          label: 'Schedule text (optional)',
           type: 'entity',
-          default: 'sensor.feeder_schedule_pretty',
-          note: { type: 'template', text: 'Must be added to <code>configuration.yaml</code> (or <code>template.yaml</code>). Formats the schedule into a readable string for the card header. Example in the repo: <code>template.yaml</code>, sensor <code>feeder_schedule_pretty</code>.' }
+          default: '',
+          note: { type: 'template', text: 'Optional, not needed. The card reads the schedule above directly. Only used as header text if the feeder schedule is unavailable.' }
         },
       ]
     },
@@ -81,14 +81,14 @@ export function editorSections() {
           label: 'Portions today',
           type: 'entity',
           default: 'sensor.feeder_portions_per_day',
-          note: { type: 'template', text: 'Must be added to <code>configuration.yaml</code> (or <code>template.yaml</code>). Counts feedings today based on history. Example in the repo: <code>configuration.yaml</code>.' }
+          note: { type: 'z2m', text: 'Created automatically by Zigbee2MQTT (<code>portions_per_day</code>). Resets at midnight on the feeder.' }
         },
         {
           key: 'entity_weight_day',
           label: 'Grams today',
           type: 'entity',
           default: 'sensor.feeder_weight_per_day',
-          note: { type: 'template', text: 'Must be added to <code>configuration.yaml</code> (or <code>template.yaml</code>). Sums total food weight for today. Example in the repo: <code>configuration.yaml</code>.' }
+          note: { type: 'z2m', text: 'Created automatically by Zigbee2MQTT (<code>weight_per_day</code>).' }
         },
         {
           key: 'entity_feeding_source',
