@@ -1,6 +1,5 @@
 import { editorSections } from './sections.js';
 import { editorStyles } from './styles.js';
-import { HELP_HTML } from './help.js';
 import { DeviceDiscovery } from './discovery-controller.js';
 
 /** Visual config editor: <aqara-feeder-card-editor>. */
@@ -63,14 +62,44 @@ export class AqaraFeederCardEditor extends HTMLElement {
   _sections() {
     return editorSections();
   }
+  _entityStatus(field, value) {
+    if (!value) {
+      return { kind: 'muted', label: field.note && field.note.type === 'template' ? 'Optional' : 'Not set' };
+    }
+    if (this._hass && this._hass.states && this._hass.states[value]) {
+      return { kind: 'ready', label: 'Available' };
+    }
+    return { kind: 'missing', label: 'Not found' };
+  }
+  _setupSummary() {
+    var keys = ['entity_schedule', 'entity_portions_day', 'entity_weight_day', 'entity_portion_weight',
+      'entity_serving_size', 'entity_feeding_source', 'entity_feeding_size', 'entity_mode',
+      'entity_child_lock', 'entity_led', 'entity_error', 'entity_update'];
+    var mapped = keys.filter(function(key) { return !!this._config[key]; }, this);
+    var available = mapped.filter(function(key) {
+      return !this._hass || !this._hass.states || !!this._hass.states[this._config[key]];
+    }, this);
+    var configured = !!this._config.device_id;
+    var status = configured && available.length === keys.length ? 'ready' : (configured ? 'partial' : 'idle');
+    var title = status === 'ready' ? 'Feeder connected' : (configured ? 'Check feeder setup' : 'Connect your feeder');
+    var detail = configured
+      ? available.length + ' of ' + keys.length + ' feeder entities are ready.'
+      : 'Select a feeder once and the card will fill in its controls and statistics.';
+    var topic = this._config.topic || '';
+    return '<section class="setup-card ' + status + '">' +
+      '<div class="setup-mark">' + (status === 'ready' ? '✓' : '•') + '</div>' +
+      '<div class="setup-copy"><strong>' + title + '</strong><span>' + detail + '</span>' +
+      (topic ? '<code>' + topic + '</code>' : '') + '</div>' +
+      '<span class="setup-count">' + available.length + '/' + keys.length + '</span>' +
+      '</section>';
+  }
   _render() {
     var self = this;
     var cfg = this._config;
     this._shadow.innerHTML = '<style>' + editorStyles() + '</style>';
-    var helpEl = document.createElement('div');
-    helpEl.className = 'help-block';
-    helpEl.innerHTML = HELP_HTML;
-    this._shadow.appendChild(helpEl);
+    var setupEl = document.createElement('div');
+    setupEl.innerHTML = this._setupSummary();
+    this._shadow.appendChild(setupEl.firstChild);
     this._sections().forEach(function(section) {
       var isOpen = !!self._open[section.key];
       var sectionEl = document.createElement('div');
@@ -79,7 +108,8 @@ export class AqaraFeederCardEditor extends HTMLElement {
       header.className = 'section-header';
       header.innerHTML =
         '<span class="section-icon">' + section.icon + '</span>' +
-        '<span class="section-title">' + section.title + '</span>' +
+        '<span class="section-copy"><span class="section-title">' + section.title + '</span>' +
+        (section.description ? '<span class="section-description">' + section.description + '</span>' : '') + '</span>' +
         '<span class="section-arrow' + (isOpen ? ' open' : '') + '">▼</span>';
       var body = document.createElement('div');
       body.className = 'section-body' + (isOpen ? ' open' : '');
@@ -98,12 +128,22 @@ export class AqaraFeederCardEditor extends HTMLElement {
         var wrapper = document.createElement('div');
         var fieldId = 'field-' + section.key + '-' + f.key;
         var isSimpleInput = f.type !== 'color' && f.type !== 'entity' && f.type !== 'checkbox';
+        var fieldHead = document.createElement('div');
+        fieldHead.className = 'field-head';
         var lbl = document.createElement(isSimpleInput ? 'label' : 'div');
         lbl.className = 'field-label';
         if (isSimpleInput) lbl.htmlFor = fieldId;
         lbl.textContent = f.label;
-        wrapper.appendChild(lbl);
+        fieldHead.appendChild(lbl);
         var val = cfg[f.key] !== undefined ? cfg[f.key] : f.default;
+        if (f.type === 'entity') {
+          var entityStatus = self._entityStatus(f, val);
+          var statusEl = document.createElement('span');
+          statusEl.className = 'field-status ' + entityStatus.kind;
+          statusEl.textContent = entityStatus.label;
+          fieldHead.appendChild(statusEl);
+        }
+        wrapper.appendChild(fieldHead);
         if (f.type === 'color') {
           var colorRow = document.createElement('div');
           colorRow.className = 'color-row';
@@ -199,7 +239,7 @@ export class AqaraFeederCardEditor extends HTMLElement {
           });
           wrapper.appendChild(inp);
         }
-        if (f.note) {
+        if (f.note && f.note.type !== 'z2m') {
           var noteEl = document.createElement('div');
           noteEl.className = 'note ' + f.note.type;
           var icon = f.note.type === 'z2m'
