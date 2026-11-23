@@ -15,6 +15,11 @@ export function editorStyles() {
     '.section-body.open{display:flex;}' +
     '.field-label{display:block;font-size:12px;color:var(--secondary-text-color,#888);margin-bottom:4px;}' +
     'ha-entity-picker{display:block;}' +
+    '.device-select{width:100%;padding:9px 10px;background:var(--input-fill-color,rgba(255,255,255,.08));' +
+      'border:1px solid var(--input-ink-color,rgba(255,255,255,.12));border-radius:8px;' +
+      'color:var(--primary-text-color,#fff);font-size:13px;}' +
+    '.device-select option{background:var(--card-background-color,#202127);color:var(--primary-text-color,#fff);}' +
+    '.device-status{font-size:11px;line-height:1.45;color:var(--secondary-text-color,#888);margin-top:5px;}' +
     'input[type=text],input[type=number]{width:100%;padding:8px 10px;' +
       'background:var(--input-fill-color,rgba(255,255,255,.08));' +
       'border:1px solid var(--input-ink-color,rgba(255,255,255,.12));' +

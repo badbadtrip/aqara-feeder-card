@@ -6,6 +6,8 @@ export function editorSections() {
       icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
       title: 'General',
       fields: [
+        { key: 'device_id', label: 'Feeder device', type: 'device', default: '',
+          note: { type: 'z2m', text: 'Choose the Aqara feeder once. The card will fill in its Zigbee2MQTT entities and MQTT topic automatically. You can still edit the topic below.' } },
         { key: 'title',         label: 'Card title', type: 'text',   default: 'Feeder' },
         { key: 'icon',          label: 'Icon (emoji or image URL)', type: 'text', default: '🐱',
           note: { type: 'template', text: 'Emoji: just paste the character. Image: provide the full path <code>/config/www/images/your_icon.png</code>. For a 3D effect use a PNG with transparent background — the icon will "float" above the circle.' } },
@@ -80,15 +82,15 @@ export function editorSections() {
           key: 'entity_portions_day',
           label: 'Portions today',
           type: 'entity',
-          default: 'sensor.feeder_portions_per_day',
-          note: { type: 'z2m', text: 'Created automatically by Zigbee2MQTT (<code>portions_per_day</code>). Resets at midnight on the feeder.' }
+          default: '',
+          note: { type: 'template', text: 'Optional: select a daily portions sensor you created. Zigbee2MQTT does not expose this daily total.' }
         },
         {
           key: 'entity_weight_day',
           label: 'Grams today',
           type: 'entity',
-          default: 'sensor.feeder_weight_per_day',
-          note: { type: 'z2m', text: 'Created automatically by Zigbee2MQTT (<code>weight_per_day</code>).' }
+          default: '',
+          note: { type: 'template', text: 'Optional: select a daily weight sensor you created. Zigbee2MQTT does not expose this daily total.' }
         },
         {
           key: 'entity_feeding_source',

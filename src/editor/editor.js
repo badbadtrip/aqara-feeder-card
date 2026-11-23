@@ -1,6 +1,7 @@
 import { editorSections } from './sections.js';
 import { editorStyles } from './styles.js';
 import { HELP_HTML } from './help.js';
+import { DeviceDiscovery } from './discovery-controller.js';
 
 /** Visual config editor: <aqara-feeder-card-editor>. */
 export class AqaraFeederCardEditor extends HTMLElement {
@@ -9,15 +10,26 @@ export class AqaraFeederCardEditor extends HTMLElement {
     this._shadow = this.attachShadow({ mode: 'open' });
     this._config = {};
     this._hass = null;
+    this._devices = [];
+    this._entities = [];
+    this._feederDevices = [];
+    this._deviceRegistryPromise = null;
+    this._deviceRegistryLoaded = false;
+    this._deviceRegistryError = null;
+    this._deviceStatusMessage = '';
+    this._hasConfig = false;
     this._open = { general: true, colors: false, labels: false, entities_schedule: false, entities_stats: false, entities_control: false, entities_device: false };
   }
   set hass(hass) {
     this._hass = hass;
+    this._loadDeviceRegistry();
     this._shadow.querySelectorAll('ha-entity-picker').forEach(function(p) { p.hass = hass; });
   }
   setConfig(config) {
+    this._hasConfig = true;
     this._config = Object.assign({}, config);
     this._render();
+    this._maybeAutoSelectFeeder();
   }
   _cssColorToHex(color) {
     if (!color) return '#000000';
@@ -145,6 +157,19 @@ export class AqaraFeederCardEditor extends HTMLElement {
             self._update(f.key, e.detail.value);
           });
           wrapper.appendChild(picker);
+        } else if (f.type === 'device') {
+          var deviceSelect = document.createElement('select');
+          deviceSelect.id = fieldId;
+          deviceSelect.className = 'device-select';
+          deviceSelect.setAttribute('aria-label', f.label);
+          deviceSelect.addEventListener('change', function() {
+            self._selectFeederDevice(deviceSelect.value);
+          });
+          wrapper.appendChild(deviceSelect);
+          var deviceStatus = document.createElement('div');
+          deviceStatus.className = 'device-status';
+          deviceStatus.setAttribute('aria-live', 'polite');
+          wrapper.appendChild(deviceStatus);
         } else if (f.type === 'checkbox') {
           var checkboxWrapper = document.createElement('label');
           checkboxWrapper.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;';
@@ -189,5 +214,15 @@ export class AqaraFeederCardEditor extends HTMLElement {
       sectionEl.appendChild(body);
       self._shadow.appendChild(sectionEl);
     });
+    this._populateDeviceSelects();
   }
 }
+
+Object.getOwnPropertyNames(DeviceDiscovery.prototype).forEach(function(name) {
+  if (name === 'constructor') return;
+  if (Object.prototype.hasOwnProperty.call(AqaraFeederCardEditor.prototype, name)) {
+    throw new Error('Editor mixin method collision: ' + name);
+  }
+  Object.defineProperty(AqaraFeederCardEditor.prototype, name,
+    Object.getOwnPropertyDescriptor(DeviceDiscovery.prototype, name));
+});

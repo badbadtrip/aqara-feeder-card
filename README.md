@@ -91,6 +91,8 @@
 
 In dashboard edit mode click **Add card** and search for **Aqara Feeder Card**.
 
+In the visual editor, select your feeder under **Feeder device**. The card reads its Home Assistant device and entity registries, fills in the matching Zigbee2MQTT entities, and sets the MQTT topic. If there is exactly one likely feeder, it is selected automatically. You can change the topic or individual entities later if needed.
+
 Minimal YAML:
 
 ```yaml
@@ -113,7 +115,7 @@ topic: zigbee2mqtt/Feeder/set
 | --- | --- | --- | --- |
 | `title` | string | `Feed the cat` | Card title |
 | `icon` | string | `🐱` | Emoji or image path, e.g. `/local/images/cat.png` |
-| `topic` | string | `zigbee2mqtt/Feeder/set` | MQTT set topic for your feeder |
+| `topic` | string | `zigbee2mqtt/Feeder/set` | MQTT set topic; selecting the feeder in the visual editor fills this in automatically |
 | `max_schedules` | number | `6` | Maximum number of schedule slots |
 | `vibration_enabled` | boolean | `true` | Haptic feedback on mobile |
 
@@ -185,7 +187,7 @@ Find them at **Settings → Devices & Services → Zigbee2MQTT → your feeder**
 
 ## No extra sensors needed
 
-Everything the card shows comes from entities that Zigbee2MQTT creates for the feeder. You don't need template sensors, `history_stats` or helpers.
+The feeder's controls, schedule, portions today and grams today use entities created by Zigbee2MQTT. You don't need template sensors, `history_stats` or helpers to use the card.
 
 Optional extras:
 

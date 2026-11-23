@@ -6,11 +6,9 @@ export const HELP_HTML =
     '<div class="help-row-body">' +
       '<div class="help-row-label">MQTT topic (set)</div>' +
       '<div class="help-row-desc">' +
-        'Open Zigbee2MQTT → Devices → find your feeder.<br>' +
-        'The device friendly name is used in the topic:<br>' +
-        '<code>zigbee2mqtt/&lt;friendly_name&gt;/set</code><br>' +
-        'Example: if the name is <code>Feeder</code>, the topic is<br>' +
-        '<code>zigbee2mqtt/Feeder/set</code>' +
+        'Choose your feeder in the <b>Feeder device</b> field. The card fills the topic and matching entities automatically.<br>' +
+        'The topic uses the default Zigbee2MQTT base topic and friendly name. If either has a custom value, check or edit the topic here.<br>' +
+        'Expected format: <code>zigbee2mqtt/&lt;friendly_name&gt;/set</code>' +
       '</div>' +
     '</div>' +
   '</div>' +

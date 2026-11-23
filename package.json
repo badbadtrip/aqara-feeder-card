@@ -1,6 +1,6 @@
 {
   "name": "aqara-feeder-card",
-  "version": "1.5.0",
+  "version": "1.6.1",
   "private": true,
   "description": "Home Assistant Lovelace card for the Aqara pet feeder via Zigbee2MQTT",
   "license": "MIT",
@@ -11,6 +11,6 @@
     "check": "node build.mjs --check"
   },
   "devDependencies": {
-    "esbuild": "0.24.2"
+    "esbuild": "^0.28.2"
   }
 }
