@@ -20,7 +20,7 @@ export class ScheduleTab {
       }
       container.innerHTML =
         '<div class="schedule-list">' + skel + '</div>' +
-        '<div class="skel-hint">Waiting for Home Assistant…</div>';
+        '<div class="skel-hint">Ожидание расписания от Home Assistant…</div>';
       return;
     }
     this._isLoading = false;
@@ -28,10 +28,10 @@ export class ScheduleTab {
       container.innerHTML =
         '<div class="empty-state">' +
           '<div class="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#535865" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>' +
-          '<div class="empty-state-text"><strong>No feedings scheduled</strong><br>Add your first feeding time below.</div>' +
+          '<div class="empty-state-text"><strong>Нет запланированных кормлений</strong><br>Добавьте время первого кормления.</div>' +
         '</div>' +
         '<div class="sched-actions">' +
-          '<button class="add-btn" id="add-slot-btn" style="flex:1;">+ Add feeding</button>' +
+          '<button class="add-btn" id="add-slot-btn" style="flex:1;">+ Добавить кормление</button>' +
         '</div>';
       container.querySelector('#add-slot-btn').addEventListener('click', function() {
         self._vibrate(10);
@@ -60,34 +60,34 @@ export class ScheduleTab {
       var passed = sm <= nowMin;
       var isNext = idx === nextIdx;
       var statusClass = passed ? 'done' : isNext ? 'next-s' : 'pending';
-      var statusText = passed ? self._lbl('label_status_passed','Passed') : isNext ? self._lbl('label_status_next','Next') : self._lbl('label_status_pending','Pending');
+      var statusText = passed ? self._lbl('label_status_passed','Прошло') : isNext ? self._lbl('label_status_next','Следующее') : self._lbl('label_status_pending','Ожидается');
       var dotClass = passed ? 'passed' : isNext ? 'next-d' : '';
       var timeClass = passed ? 'passed' : '';
       var portionWeight = parseFloat(self._state(self._e('entity_portion_weight'), '5')) || 5;
       var grams = Math.round(s.size * portionWeight);
       html +=
-        '<div class="sched-item" data-slot="' + idx + '" title="Tap to edit" tabindex="0" role="button" aria-label="Edit feeding ' + self._pad(s.hour) + ':' + self._pad(s.minute) + ', ' + s.size + ' portions, ' + statusText + '">' +
+        '<div class="sched-item" data-slot="' + idx + '" title="Изменить кормление" tabindex="0" role="button" aria-label="Изменить кормление в ' + self._pad(s.hour) + ':' + self._pad(s.minute) + ', ' + s.size + ' порц., ' + statusText + '">' +
           '<div class="sched-dot ' + dotClass + '"></div>' +
           '<div class="sched-time ' + timeClass + '">' + self._pad(s.hour) + ':' + self._pad(s.minute) + '</div>' +
           '<div class="sched-info">' +
-            '<div class="sched-portions">' + s.size + ' portions</div>' +
-            '<div class="sched-grams">~' + grams + 'g</div>' +
+            '<div class="sched-portions">' + s.size + ' порц.</div>' +
+            '<div class="sched-grams">~' + grams + ' г</div>' +
           '</div>' +
           '<span class="sched-status ' + statusClass + '">' + statusText + '</span>' +
           '<span class="sched-edit-hint"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>' +
-          '<button class="sched-delete" data-del="' + idx + '" title="Remove" aria-label="Remove ' + self._pad(s.hour) + ':' + self._pad(s.minute) + ' feeding"><div class="sched-delete-inner"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></button>' +
+          '<button class="sched-delete" data-del="' + idx + '" title="Удалить" aria-label="Удалить кормление в ' + self._pad(s.hour) + ':' + self._pad(s.minute) + '"><div class="sched-delete-inner"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></button>' +
         '</div>';
     });
     html += '</div>';
     var diverges = this._hasDivergence();
     html += '<div class="sched-actions">';
     if (schedules.length < maxSchedules) {
-      html += '<button class="add-btn" id="add-slot-btn">+ Add</button>';
+      html += '<button class="add-btn" id="add-slot-btn">+ Добавить</button>';
     }
     if (diverges) {
-      html += '<button class="add-btn warn" id="sync-btn" title="Reload from feeder" aria-label="Reload schedule from feeder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>';
+      html += '<button class="add-btn warn" id="sync-btn" title="Загрузить с кормушки" aria-label="Загрузить расписание с кормушки"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>';
     }
-    html += '<button class="apply-btn' + (this._pending ? ' pulse' : '') + '" id="apply-btn">' + (this._pending ? 'Send changes' : 'Send to feeder') + '</button>';
+    html += '<button class="apply-btn' + (this._pending ? ' pulse' : '') + '" id="apply-btn">' + (this._pending ? 'Отправить изменения' : 'Отправить в кормушку') + '</button>';
     html += '</div>';
     container.innerHTML = html;
     this._bindManualModeBanner(container);
@@ -120,8 +120,8 @@ export class ScheduleTab {
         self._markPending();
         self._renderTab('schedule');
         self._showSnackbar(
-          'Feeding at ' + self._pad(removed.hour) + ':' + self._pad(removed.minute) + ' removed',
-          'Undo',
+          'Кормление в ' + self._pad(removed.hour) + ':' + self._pad(removed.minute) + ' удалено',
+          'Отменить',
           function() {
             if (!self._undo) return;
             var restoreIdx = Math.min(self._undo.index, self._schedules.length);
@@ -159,20 +159,27 @@ export class ScheduleTab {
         self._undo = null;
         self._renderHeader();
         self._renderTab('schedule');
-        self._showSnackbar('Synced from feeder');
+        self._showSnackbar('Расписание загружено с кормушки');
       });
     }
     var applyBtn = container.querySelector('#apply-btn');
     if (applyBtn) {
-      applyBtn.addEventListener('click', function() {
+      applyBtn.addEventListener('click', async function() {
         if (applyBtn.disabled) return;
         if (!self._schedules || self._schedules.length === 0) return;
         applyBtn.disabled = true;
         applyBtn.style.opacity = '0.6';
         self._vibrate([10, 20, 10]);
-        self._sendSchedule();
-        self._renderHeader();
-        self._showSent();
+        try {
+          await self._sendSchedule();
+          self._renderHeader();
+          self._showSent();
+        } catch (error) {
+          applyBtn.disabled = false;
+          applyBtn.style.opacity = '';
+          self._showMqttError(error, 'Не удалось отправить расписание');
+          return;
+        }
         setTimeout(function() {
           applyBtn.disabled = false;
           applyBtn.style.opacity = '';
@@ -185,9 +192,9 @@ export class ScheduleTab {
   _manualModeBanner() {
     if (this._state(this._e('entity_mode'), '') !== 'manual') return '';
     return '<div class="mode-warn" role="alert">' +
-      '<div class="mode-warn-text"><strong>Schedule is paused</strong>' +
-      'The feeder is in Manual mode and will not dispense on schedule.</div>' +
-      '<button class="mode-warn-btn" id="enable-schedule-btn">Turn on</button>' +
+      '<div class="mode-warn-text"><strong>Расписание на паузе</strong>' +
+      'В ручном режиме кормушка пропускает кормления по расписанию.</div>' +
+      '<button class="mode-warn-btn" id="enable-schedule-btn">Включить расписание</button>' +
     '</div>';
   }
   _bindManualModeBanner(container) {
@@ -202,7 +209,7 @@ export class ScheduleTab {
       self._hass.callService('select', 'select_option', { entity_id: modeEntity, option: 'schedule' })
         .catch(function() {
           btn.disabled = false;
-          self._showSnackbar('Failed to switch feeder mode');
+          self._showSnackbar('Не удалось сменить режим кормушки');
         });
     });
   }

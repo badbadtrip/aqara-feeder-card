@@ -13,6 +13,9 @@ const ENTITY_ROLES = [
   { key: 'entity_update', domain: 'update', terms: ['firmware', 'update'] },
 ];
 
+export const FEEDER_ENTITY_KEYS = ENTITY_ROLES.map(function(role) { return role.key; });
+export const FEEDER_CONFIG_KEYS = ['topic'].concat(FEEDER_ENTITY_KEYS);
+
 function normalize(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
@@ -20,16 +23,16 @@ function normalize(value) {
 function roleFor(entity) {
   var entityId = entity.entity_id || '';
   var domain = entityId.split('.')[0];
-  var searchable = normalize([
-    entityId,
-    entity.original_name,
-    entity.name,
-  ].join(' '));
-  if (searchable.includes('schedulepretty')) return undefined;
+  var objectId = normalize(entityId.replace(/_\d+$/, '').split('.')[1]);
+  var names = [entity.original_name, entity.name].map(normalize);
+  var candidates = [objectId].concat(names);
+  if (candidates.some(function(value) { return value.endsWith('schedulepretty'); })) return undefined;
 
   return ENTITY_ROLES.find(function(role) {
-    return role.domain === domain && role.terms.some(function(term) {
-      return searchable.includes(term);
+    if (role.domain !== domain) return false;
+    if (role.key === 'entity_update' && candidates.includes('feeder')) return true;
+    return role.terms.some(function(term) {
+      return candidates.some(function(value) { return value.endsWith(term); });
     });
   });
 }
@@ -64,7 +67,7 @@ export function isConfidentFeeder(deviceId, entities) {
 }
 
 export function feederDeviceLabel(device) {
-  var name = device.name_by_user || device.name || device.model || 'Unnamed feeder';
+  var name = device.name_by_user || device.name || device.model || 'Кормушка без названия';
   var details = [device.manufacturer, device.model].filter(Boolean).join(' ');
   return details && !name.toLowerCase().includes(details.toLowerCase())
     ? name + ' · ' + details
@@ -73,6 +76,6 @@ export function feederDeviceLabel(device) {
 
 /** Z2M publishes each device below zigbee2mqtt/<friendly_name>/set. */
 export function feederMqttTopic(device) {
-  var friendlyName = device && (device.name || device.name_by_user);
+  var friendlyName = device && device.name;
   return friendlyName ? 'zigbee2mqtt/' + friendlyName + '/set' : '';
 }

@@ -9,7 +9,7 @@ export class InfoTab {
     var mode = this._state(this._e('entity_mode'), '-');
     var feedingSize = this._state(this._e('entity_feeding_size'), '-');
     var feedingSource = this._state(this._e('entity_feeding_source'), '-');
-    var sourceLabel = { schedule: 'Auto schedule', manual: 'Manual', remote: 'Remote' }[feedingSource] || (feedingSource === '-' ? '-' : feedingSource);
+    var sourceLabel = this._displayState(feedingSource, { schedule: 'По расписанию', manual: 'Вручную', remote: 'Удалённо' });
     var updateEntity = this._e('entity_update');
     var fw = (this._hass && updateEntity && this._hass.states[updateEntity] && this._hass.states[updateEntity].attributes.installed_version) || '-';
     var actual = this._state(this._e('entity_schedule'), '-');
@@ -17,29 +17,29 @@ export class InfoTab {
     var modeEntity = this._e('entity_mode');
     var modeAvailable = mode === 'schedule' || mode === 'manual';
     var modeRow = modeAvailable
-      ? '<div class="info-row"><div class="info-row-label">Mode</div>' +
-          '<div class="segmented" role="tablist" aria-label="Feeder mode">' +
-            '<button class="seg-btn' + (mode === 'schedule' ? ' active' : '') + '" data-mode="schedule" role="tab" aria-selected="' + (mode === 'schedule') + '">Auto</button>' +
-            '<button class="seg-btn' + (mode === 'manual' ? ' active' : '') + '" data-mode="manual" role="tab" aria-selected="' + (mode === 'manual') + '">Manual</button>' +
+      ? '<div class="info-row"><div class="info-row-label">Режим</div>' +
+          '<div class="segmented" role="tablist" aria-label="Режим кормушки">' +
+            '<button class="seg-btn' + (mode === 'schedule' ? ' active' : '') + '" data-mode="schedule" role="tab" aria-selected="' + (mode === 'schedule') + '">По расписанию</button>' +
+            '<button class="seg-btn' + (mode === 'manual' ? ' active' : '') + '" data-mode="manual" role="tab" aria-selected="' + (mode === 'manual') + '">Ручной</button>' +
           '</div></div>'
-      : '<div class="info-row"><div class="info-row-label">Mode</div><div class="info-row-val">-</div></div>';
+      : '<div class="info-row"><div class="info-row-label">Режим</div><div class="info-row-val">-</div></div>';
     container.innerHTML =
       '<div class="info-grid">' +
         modeRow +
-        '<div class="info-row"><div class="info-row-label">Haptic feedback</div><div class="toggle ' + (this._config.vibration_enabled !== false ? 'on' : '') + '" id="toggle-vibration" role="switch" tabindex="0" aria-checked="' + (this._config.vibration_enabled !== false) + '" aria-label="Haptic feedback"><div class="toggle-thumb"></div></div></div>' +
-        '<div class="info-row"><div class="info-row-label">Sound feedback</div><div class="toggle ' + (this._config.sound_enabled === true ? 'on' : '') + '" id="toggle-sound" role="switch" tabindex="0" aria-checked="' + (this._config.sound_enabled === true) + '" aria-label="Sound feedback"><div class="toggle-thumb"></div></div></div>' +
-        '<div class="info-row"><div class="info-row-label">Portion weight</div>' +
+        '<div class="info-row"><div class="info-row-label">Вибрация</div><div class="toggle ' + (this._config.vibration_enabled !== false ? 'on' : '') + '" id="toggle-vibration" role="switch" tabindex="0" aria-checked="' + (this._config.vibration_enabled !== false) + '" aria-label="Вибрация"><div class="toggle-thumb"></div></div></div>' +
+        '<div class="info-row"><div class="info-row-label">Звук кнопок</div><div class="toggle ' + (this._config.sound_enabled === true ? 'on' : '') + '" id="toggle-sound" role="switch" tabindex="0" aria-checked="' + (this._config.sound_enabled === true) + '" aria-label="Звук кнопок"><div class="toggle-thumb"></div></div></div>' +
+        '<div class="info-row"><div class="info-row-label">Вес порции</div>' +
           '<div class="info-row-val" style="display:flex;align-items:center;gap:8px;">' +
-            '<button class="step-btn" id="pw-minus" style="width:36px;height:36px;font-size:14px;" aria-label="Decrease">−</button>' +
-            '<span id="pw-val">' + portionWeight + '</span>g' +
-            '<button class="step-btn" id="pw-plus" style="width:36px;height:36px;font-size:14px;" aria-label="Increase">+</button>' +
+            '<button class="step-btn" id="pw-minus" style="width:36px;height:36px;font-size:14px;" aria-label="Уменьшить вес порции">−</button>' +
+            '<span id="pw-val">' + this._displayState(portionWeight) + '</span> г' +
+            '<button class="step-btn" id="pw-plus" style="width:36px;height:36px;font-size:14px;" aria-label="Увеличить вес порции">+</button>' +
           '</div></div>' +
-        '<div class="info-row"><div class="info-row-label">Last feeding source</div><div class="info-row-val">' + sourceLabel + '</div></div>' +
-        '<div class="info-row"><div class="info-row-label">Last portion size</div><div class="info-row-val">' + feedingSize + ' por.</div></div>' +
-        '<div class="info-row"><div class="info-row-label">Child lock</div><div class="toggle ' + (lock?'on':'') + '" id="toggle-lock" role="switch" tabindex="0" aria-checked="' + lock + '" aria-label="Child lock"><div class="toggle-thumb"></div></div></div>' +
-        '<div class="info-row"><div class="info-row-label">LED indicator</div><div class="toggle ' + (led?'on':'') + '" id="toggle-led" role="switch" tabindex="0" aria-checked="' + led + '" aria-label="LED indicator"><div class="toggle-thumb"></div></div></div>' +
-        '<div class="info-row"><div class="info-row-label">Firmware</div><div class="info-row-val">' + fw + '</div></div>' +
-        '<details class="raw-details"' + (rawOpen ? ' open' : '') + '><summary>Feeder schedule (raw)</summary><div class="raw-content">' + actual + '</div></details>' +
+        '<div class="info-row"><div class="info-row-label">Источник последнего кормления</div><div class="info-row-val">' + sourceLabel + '</div></div>' +
+        '<div class="info-row"><div class="info-row-label">Размер последней порции</div><div class="info-row-val">' + this._displayState(feedingSize) + (Number.isFinite(parseFloat(feedingSize)) ? ' порц.' : '') + '</div></div>' +
+        '<div class="info-row"><div class="info-row-label">Блокировка от детей</div><div class="toggle ' + (lock?'on':'') + '" id="toggle-lock" role="switch" tabindex="0" aria-checked="' + lock + '" aria-label="Блокировка от детей"><div class="toggle-thumb"></div></div></div>' +
+        '<div class="info-row"><div class="info-row-label">Световой индикатор</div><div class="toggle ' + (led?'on':'') + '" id="toggle-led" role="switch" tabindex="0" aria-checked="' + led + '" aria-label="Световой индикатор"><div class="toggle-thumb"></div></div></div>' +
+        '<div class="info-row"><div class="info-row-label">Прошивка</div><div class="info-row-val">' + fw + '</div></div>' +
+        '<details class="raw-details"' + (rawOpen ? ' open' : '') + '><summary>Исходные данные расписания</summary><div class="raw-content">' + this._displayState(actual) + '</div></details>' +
       '</div>';
     container.querySelectorAll('.seg-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {

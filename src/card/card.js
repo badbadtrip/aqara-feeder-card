@@ -1,4 +1,5 @@
 import { defaultConfig } from '../defaults.js';
+import { FEEDER_CONFIG_KEYS } from '../editor/device-discovery.js';
 import { cardStyles } from './styles.js';
 import { ScheduleState } from './state.js';
 import { Formatting } from './format.js';
@@ -39,11 +40,13 @@ export class AqaraFeederCard extends HTMLElement {
   static getConfigElement() {
     return document.createElement('aqara-feeder-card-editor');
   }
-    static getStubConfig() {
-      return defaultConfig();
-    }
+  static getStubConfig() {
+    var config = defaultConfig();
+    FEEDER_CONFIG_KEYS.forEach(function(key) { config[key] = ''; });
+    return config;
+  }
   setConfig(config) {
-    var defaults = AqaraFeederCard.getStubConfig();
+    var defaults = defaultConfig();
     this._config = Object.assign({}, defaults, config);
     this._built = false;
     if (this._hass) this._render();
@@ -92,16 +95,16 @@ export class AqaraFeederCard extends HTMLElement {
         '<div class="hdr">' +
           '<div class="hdr-icon">' + iconHtml + '</div>' +
           '<div class="hdr-info">' +
-            '<div class="hdr-title"><span class="hdr-status-dot offline-dot" id="hdr-status-dot"></span>' + (this._config.title || 'Feeder') + '</div>' +
-            '<div class="hdr-sub" id="hdr-sub" title="">Loading...</div>' +
+            '<div class="hdr-title"><span class="hdr-status-dot offline-dot" id="hdr-status-dot"></span>' + (this._config.title || 'Кормушка') + '</div>' +
+            '<div class="hdr-sub" id="hdr-sub" title="">Загрузка…</div>' +
           '</div>' +
           '<div class="hdr-badges" id="hdr-badges"></div>' +
         '</div>' +
         '<div class="stats" id="stats-row"></div>' +
         '<div class="tabs" role="tablist">' +
-          '<button class="tab-btn active" id="tab-btn-schedule" data-tab="schedule" role="tab" aria-selected="true" aria-controls="tab-schedule"><div class="tab-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><span class="tab-label">' + this._lbl('label_schedule', 'Schedule') + '</span></button>' +
-          '<button class="tab-btn" id="tab-btn-feed" data-tab="feed" role="tab" aria-selected="false" aria-controls="tab-feed"><div class="tab-icon"><svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div><span class="tab-label">' + this._lbl('label_feed', 'Feed now') + '</span></button>' +
-          '<button class="tab-btn" id="tab-btn-info" data-tab="info" role="tab" aria-selected="false" aria-controls="tab-info"><div class="tab-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><span class="tab-label">' + this._lbl('label_settings', 'Settings') + '</span></button>' +
+          '<button class="tab-btn active" id="tab-btn-schedule" data-tab="schedule" role="tab" aria-selected="true" aria-controls="tab-schedule"><div class="tab-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><span class="tab-label">' + this._lbl('label_schedule', 'Расписание') + '</span></button>' +
+          '<button class="tab-btn" id="tab-btn-feed" data-tab="feed" role="tab" aria-selected="false" aria-controls="tab-feed"><div class="tab-icon"><svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div><span class="tab-label">' + this._lbl('label_feed', 'Покормить') + '</span></button>' +
+          '<button class="tab-btn" id="tab-btn-info" data-tab="info" role="tab" aria-selected="false" aria-controls="tab-info"><div class="tab-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><span class="tab-label">' + this._lbl('label_settings', 'Настройки') + '</span></button>' +
         '</div>' +
         '<div class="content">' +
           '<div id="tab-schedule" class="tab-pane" role="tabpanel" aria-labelledby="tab-btn-schedule"></div>' +

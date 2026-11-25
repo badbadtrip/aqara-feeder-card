@@ -89,11 +89,17 @@
 
 ### Adding the card
 
-In dashboard edit mode click **Add card** and search for **Aqara Feeder Card**.
+1. В Home Assistant откройте панель в режиме редактирования, нажмите **Добавить карточку** и найдите **Кормушка Aqara**.
+2. В разделе **Основные настройки** выберите устройство в списке **Кормушка Zigbee2MQTT**. Если карточка новая и найдена одна кормушка с расписанием, размером порции и данными о последнем кормлении, редактор выберет её автоматически.
+3. Проверьте **MQTT topic для команд** и сохраните карточку. Редактор подставляет `zigbee2mqtt/<friendly_name>/set` и сопоставляет доступные MQTT-сущности кормушки. Если вы меняли базовый topic или имя в Zigbee2MQTT, укажите фактический адрес вручную.
 
-In the visual editor, select your feeder under **Feeder device**. The card reads its Home Assistant device and entity registries, fills in the matching Zigbee2MQTT entities, and sets the MQTT topic. If there is exactly one likely feeder, it is selected automatically. You can change the topic or individual entities later if needed.
+Если кормушки нет в списке, проверьте, появилось ли устройство в MQTT-интеграции Home Assistant. При частичном сопоставлении откройте нужные разделы **Сущности** и выберите доступные сущности вручную. Те же поля доступны при ошибке чтения реестров. Для ручной настройки укажите topic, сущность расписания и число порций для ручного кормления. Остальные сущности добавляйте по мере необходимости.
 
-Minimal YAML:
+При выборе другой кормушки редактор заменяет устройство, MQTT topic и поля автоподбора сущностей за одно изменение. Поля без сопоставления очищаются. Если сохранённый вручную topic (в том числе с нестандартным префиксом) или сущность отличаются от данных выбранной кормушки, редактор запросит подтверждение. Это также относится к старым конфигурациям без `device_id`. При отмене конфигурация и выбор кормушки сохраняются целиком.
+
+После выбора MQTT topic и сущности можно править вручную. Повторный выбор текущей кормушки сохраняет эти правки. При снятии выбора очищаются поля, совпадающие с данными прежней кормушки, а ручные значения сохраняются. Заголовок, подписи и дополнительные датчики, которые задаются вручную, сохраняются при выборе кормушки.
+
+Пример минимальной настройки через YAML:
 
 ```yaml
 type: custom:aqara-feeder-card
@@ -113,9 +119,9 @@ topic: zigbee2mqtt/Feeder/set
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `title` | string | `Feed the cat` | Card title |
+| `title` | string | `Кормушка` | Card title |
 | `icon` | string | `🐱` | Emoji or image path, e.g. `/local/images/cat.png` |
-| `topic` | string | `zigbee2mqtt/Feeder/set` | MQTT set topic; selecting the feeder in the visual editor fills this in automatically |
+| `topic` | string | `zigbee2mqtt/Feeder/set` | Default for existing configs with this field omitted. New visual cards fill the topic from the selected feeder. |
 | `max_schedules` | number | `6` | Maximum number of schedule slots |
 | `vibration_enabled` | boolean | `true` | Haptic feedback on mobile |
 
@@ -128,15 +134,15 @@ topic: zigbee2mqtt/Feeder/set
 
 | Key | Default |
 | --- | --- |
-| `label_schedule` | `Schedule` |
-| `label_feed` | `Feed now` |
-| `label_settings` | `Settings` |
-| `label_portions_today` | `Portions today` |
-| `label_grams_today` | `Grams today` |
-| `label_per_portion` | `Per portion` |
-| `label_status_passed` | `Passed` |
-| `label_status_next` | `Next` |
-| `label_status_pending` | `Pending` |
+| `label_schedule` | `Расписание` |
+| `label_feed` | `Покормить` |
+| `label_settings` | `Настройки` |
+| `label_portions_today` | `Порций сегодня` |
+| `label_grams_today` | `Граммов сегодня` |
+| `label_per_portion` | `Вес порции` |
+| `label_status_passed` | `Прошло` |
+| `label_status_next` | `Следующее` |
+| `label_status_pending` | `Ожидается` |
 
 </details>
 
@@ -323,7 +329,7 @@ Issues and pull requests are welcome.
 
 **Before opening a PR:**
 1. Open an issue first to discuss the change — this avoids wasted effort on PRs that won't be merged.
-2. Test your changes against a real feeder or a mocked MQTT device.
+2. Run the local mocks and bundle checks below.
 3. If you're changing the card UI, include a screenshot in the PR description.
 
 **Local development:**
@@ -331,16 +337,14 @@ Issues and pull requests are welcome.
 The source lives in `src/` as small vanilla-JS modules. [esbuild](https://esbuild.github.io/) bundles them into the single `aqara-feeder-card.js` that HACS and Home Assistant load. **Don't edit `aqara-feeder-card.js` by hand.** Edit `src/`, rebuild, and commit both. CI fails if the bundle is out of date.
 
 ```bash
-git clone https://github.com/badbadtrip/aqara-feeder-card.git
-cd aqara-feeder-card
-npm install
-
-npm run build   # build aqara-feeder-card.js once
-npm run watch   # rebuild on every change
-
-# Copy the bundle to Home Assistant, then reload the resource and hard-refresh the browser
-cp aqara-feeder-card.js /path/to/homeassistant/config/www/
+npm ci
+node --test test/feeder.test.js
+npm run build
+npm run check
+git diff --check
 ```
+
+Моки проверяют визуальный редактор, реестры и параметры команд локально, без Home Assistant и MQTT. Для проверки устаревшего bundle измените строку интерфейса в `src/` и запустите `npm run check` до пересборки. Ожидаемый код выхода — `1`. После `npm run build` ожидается `0`.
 
 | Path | What's inside |
 | --- | --- |

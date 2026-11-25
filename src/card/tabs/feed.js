@@ -37,36 +37,36 @@ export class FeedTab {
       '</svg>';
     };
     var html =
-      '<div class="feed-section-title">Quick feed</div>' +
+      '<div class="feed-section-title">Быстрая выдача</div>' +
       '<div class="quick-btns sizes-' + sizes.length + '">';
     sizes.forEach(function(n) {
       var classes = ['quick-btn', levelClass(n)];
       if (n === favourite) classes.push('favourite');
       if (self._lastFeedSize === n) classes.push('last-used');
       var grams = Math.round(n * portionWeight);
-      html += '<button class="' + classes.join(' ') + '" data-size="' + n + '" aria-label="Feed ' + n + ' portions, ~' + grams + ' grams">' +
+      html += '<button class="' + classes.join(' ') + '" data-size="' + n + '" aria-label="Выдать корм: ' + n + ' порц., ~' + grams + ' г">' +
         (n === favourite ? '<span class="quick-fav" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"/></svg></span>' : '') +
-        (self._lastFeedSize === n ? '<span class="quick-last-dot" aria-label="Last used"></span>' : '') +
+        (self._lastFeedSize === n ? '<span class="quick-last-dot" aria-label="Последний выбор"></span>' : '') +
         pelletsHtml(n) +
         bowlSvg(n) +
         '<div class="quick-meta">' +
           '<span class="quick-btn-val">' + n + '</span>' +
-          '<span class="quick-btn-lbl">~' + grams + 'g</span>' +
+          '<span class="quick-btn-lbl">~' + grams + ' г</span>' +
         '</div>' +
-        '<span class="quick-fed-mark" aria-hidden="true">✓ Fed!</span>' +
+        '<span class="quick-fed-mark" aria-hidden="true">✓ Корм выдан</span>' +
       '</button>';
     });
     html += '</div>' +
-      '<div class="feed-section-title">Custom</div>' +
+      '<div class="feed-section-title">Своя порция</div>' +
       '<div class="custom-feed">' +
-        '<div class="custom-label">Number of portions</div>' +
+        '<div class="custom-label">Количество порций</div>' +
         '<div class="stepper">' +
-          '<button class="step-btn" id="c-minus" aria-label="Decrease">−</button>' +
+          '<button class="step-btn" id="c-minus" aria-label="Уменьшить количество порций">−</button>' +
           '<div class="step-val" id="c-val">' + customSize + '</div>' +
-          '<button class="step-btn" id="c-plus" aria-label="Increase">+</button>' +
+          '<button class="step-btn" id="c-plus" aria-label="Увеличить количество порций">+</button>' +
         '</div>' +
       '</div>' +
-      '<button class="feed-now-btn" id="feed-now-btn">Feed now (' + customSize + ' por. ~' + Math.round(customSize*portionWeight) + 'g)</button>';
+      '<button class="feed-now-btn" id="feed-now-btn">Покормить (' + customSize + ' порц., ~' + Math.round(customSize*portionWeight) + ' г)</button>';
     container.innerHTML = html;
     var valEl = container.querySelector('#c-val');
     var btn = container.querySelector('#feed-now-btn');
@@ -75,7 +75,7 @@ export class FeedTab {
     var updateCustom = function() {
       self._customSize = customSize;
       valEl.textContent = customSize;
-      btn.textContent = 'Feed now (' + customSize + ' por. ~' + Math.round(customSize*portionWeight) + 'g)';
+      btn.textContent = 'Покормить (' + customSize + ' порц., ~' + Math.round(customSize*portionWeight) + ' г)';
       cMinusBtn.disabled = customSize <= 1;
       cPlusBtn.disabled = customSize >= 10;
     };
@@ -102,10 +102,10 @@ export class FeedTab {
               b.dataset.busy = '';
               self._renderTab('feed');
             }, 1800);
-          }).catch(function() {
+          }).catch(function(error) {
             b.dataset.busy = '';
             b.classList.remove('busy');
-            self._showSnackbar('Failed to send feed command');
+            self._showMqttError(error, 'Не удалось отправить команду кормления');
           });
         }, function() {
           b.dataset.busy = '';
@@ -120,9 +120,9 @@ export class FeedTab {
         btn.disabled = true;
         self._feedNow(customSize).then(function() {
           self._showFeedSuccess(btn);
-        }).catch(function() {
+        }).catch(function(error) {
           btn.disabled = false;
-          self._showSnackbar('Failed to send feed command');
+          self._showMqttError(error, 'Не удалось отправить команду кормления');
         });
       });
     });

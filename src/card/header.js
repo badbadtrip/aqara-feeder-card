@@ -11,10 +11,10 @@ export class Header {
     var next = this._computeNextFeeding();
     if (next) {
       var cd = this._formatCountdown(next.seconds);
-      sub.textContent = 'Next in ' + cd + ' · ' + this._pad(next.schedule.hour) + ':' + this._pad(next.schedule.minute);
+      sub.textContent = 'Через ' + cd + ' · ' + this._pad(next.schedule.hour) + ':' + this._pad(next.schedule.minute);
     } else {
       var pretty = this._state(this._e('entity_schedule_pretty'), '');
-      var text = (pretty && pretty !== 'unavailable' && pretty !== 'unknown') ? pretty : 'No schedule';
+      var text = (pretty && pretty !== 'unavailable' && pretty !== 'unknown') ? pretty : 'Нет расписания';
       sub.textContent = text;
     }
     sub.title = sub.textContent;
@@ -22,12 +22,12 @@ export class Header {
     if (statusDot) {
       statusDot.classList.toggle('online-dot', online);
       statusDot.classList.toggle('offline-dot', !online);
-      statusDot.title = online ? 'Online' : 'Offline';
+      statusDot.title = online ? 'В сети' : 'Не в сети';
     }
     var parts = [];
-    if (online && mode === 'manual') parts.push('<span class="badge badge-mode">Manual</span>');
-    if (this._pending) parts.push('<span class="badge badge-pending" title="Unsent local changes">● Pending</span>');
-    if (error) parts.push('<span class="badge badge-error">Error</span>');
+    if (online && mode === 'manual') parts.push('<span class="badge badge-mode">Ручной режим</span>');
+    if (this._pending) parts.push('<span class="badge badge-pending" title="Изменения ещё не отправлены">● Не отправлено</span>');
+    if (error) parts.push('<span class="badge badge-error">Ошибка</span>');
     badges.innerHTML = parts.join('');
     var foodEntity = this._e('entity_food_level');
     if (foodEntity && this._hass && this._hass.states[foodEntity]) {
@@ -46,8 +46,8 @@ export class Header {
             bar.setAttribute('aria-valuemin', '0');
             bar.setAttribute('aria-valuemax', '100');
             bar.setAttribute('aria-valuenow', Math.round(pct));
-            bar.setAttribute('aria-label', 'Food level');
-            bar.innerHTML = '<div class="food-bar-label">Food level</div><div class="food-bar-track"><div class="food-bar-fill" style="width:' + pct + '%;"></div></div><div class="food-bar-val">' + Math.round(pct) + '%</div>';
+            bar.setAttribute('aria-label', 'Уровень корма');
+            bar.innerHTML = '<div class="food-bar-label">Уровень корма</div><div class="food-bar-track"><div class="food-bar-fill" style="width:' + pct + '%;"></div></div><div class="food-bar-val">' + Math.round(pct) + '%</div>';
             stats.parentNode.insertBefore(bar, stats);
           }
         } else {
@@ -79,7 +79,7 @@ export class Header {
       var n = self._computeNextFeeding();
       if (!n) return;
       var cd = self._formatCountdown(n.seconds);
-      sub.textContent = 'Next in ' + cd + ' · ' + self._pad(n.schedule.hour) + ':' + self._pad(n.schedule.minute);
+      sub.textContent = 'Через ' + cd + ' · ' + self._pad(n.schedule.hour) + ':' + self._pad(n.schedule.minute);
     }, 30000);
   }
   _renderStats() {
@@ -93,8 +93,8 @@ export class Header {
     var portionsClass = (portions === '0' || portions === '-') ? 'stat-val empty' : 'stat-val';
     var gramsClass = (gFmt.val === '0' || gFmt.val === '-') ? 'stat-val empty' : 'stat-val';
     el.innerHTML =
-      '<div class="stat"><div class="' + portionsClass + '">' + portions + '</div><div class="stat-lbl">' + this._lbl('label_portions_today', 'Portions today') + '</div></div>' +
-      '<div class="stat"><div class="' + gramsClass + '">' + gFmt.val + '<span>' + gFmt.unit + '</span></div><div class="stat-lbl">' + this._lbl('label_grams_today', 'Grams today') + '</div></div>' +
-      '<div class="stat"><div class="stat-val">' + weight + '<span>g</span></div><div class="stat-lbl">' + this._lbl('label_per_portion', 'Per portion') + '</div></div>';
+      '<div class="stat"><div class="' + portionsClass + '">' + portions + '</div><div class="stat-lbl">' + this._lbl('label_portions_today', 'Порций сегодня') + '</div></div>' +
+      '<div class="stat"><div class="' + gramsClass + '">' + gFmt.val + '<span>' + gFmt.unit + '</span></div><div class="stat-lbl">' + this._lbl('label_grams_today', 'Граммов сегодня') + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + weight + '<span>г</span></div><div class="stat-lbl">' + this._lbl('label_per_portion', 'Вес порции') + '</div></div>';
   }
 }

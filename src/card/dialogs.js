@@ -56,14 +56,14 @@ export class Dialogs {
     popup.setAttribute('aria-modal', 'true');
     popup.setAttribute('aria-labelledby', 'popup-title-confirm');
     popup.innerHTML =
-      '<div class="popup-title" id="popup-title-confirm">Confirm feeding</div>' +
-      '<button class="popup-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
+      '<div class="popup-title" id="popup-title-confirm">Подтвердите кормление</div>' +
+      '<button class="popup-close" aria-label="Закрыть"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
       '<div style="text-align:center;font-size:13px;color:#969aa6;margin-bottom:20px;">' +
-        'Will dispense <strong style="color:#fff;">' + size + ' por.</strong> (~' + grams + 'g)' +
+        'Будет выдано: <strong style="color:#fff;">' + size + ' порц.</strong> (~' + grams + ' г)' +
       '</div>' +
       '<div class="popup-actions">' +
-        '<button class="popup-cancel" id="cancel-feed-btn">Cancel</button>' +
-        '<button class="popup-save" id="confirm-feed-btn" style="background:' + G + ';color:#000;">Feed</button>' +
+        '<button class="popup-cancel" id="cancel-feed-btn">Отмена</button>' +
+        '<button class="popup-save" id="confirm-feed-btn" style="background:' + G + ';color:#000;">Выдать корм</button>' +
       '</div>';
     overlay.appendChild(popup);
     this._shadow.querySelector('.card').appendChild(overlay);
@@ -111,28 +111,28 @@ export class Dialogs {
     popup.setAttribute('aria-modal', 'true');
     popup.setAttribute('aria-labelledby', 'popup-title-edit');
     popup.innerHTML =
-      '<div class="popup-title" id="popup-title-edit">Edit feeding ' + self._pad(s.hour) + ':' + self._pad(s.minute) + '</div>' +
-      '<button class="popup-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
+      '<div class="popup-title" id="popup-title-edit">Изменить кормление в ' + self._pad(s.hour) + ':' + self._pad(s.minute) + '</div>' +
+      '<button class="popup-close" aria-label="Закрыть"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
       '<div class="popup-row">' +
-        '<div class="popup-row-label">Time</div>' +
+        '<div class="popup-row-label">Время</div>' +
         '<div class="time-inputs">' +
-          '<input class="num-input" id="p-hour" type="number" min="0" max="23" inputmode="numeric" aria-label="Hour" value="' + Math.round(hour) + '">' +
+          '<input class="num-input" id="p-hour" type="number" min="0" max="23" inputmode="numeric" aria-label="Часы" value="' + Math.round(hour) + '">' +
           '<span class="time-sep">:</span>' +
-          '<input class="num-input" id="p-min" type="number" min="0" max="59" inputmode="numeric" aria-label="Minute" value="' + Math.round(minute) + '">' +
+          '<input class="num-input" id="p-min" type="number" min="0" max="59" inputmode="numeric" aria-label="Минуты" value="' + Math.round(minute) + '">' +
         '</div>' +
         '<div class="popup-warn" id="p-warn" style="display:none;"></div>' +
       '</div>' +
       '<div class="popup-row">' +
-        '<div class="popup-row-label">Portions</div>' +
+        '<div class="popup-row-label">Количество порций</div>' +
         '<div class="size-stepper">' +
-          '<button class="size-step-btn" id="p-minus" aria-label="Decrease">−</button>' +
-          '<div><div class="size-val" id="p-size">' + Math.round(size) + '</div><div class="size-sub" id="p-grams">~' + Math.round(size*portionWeight) + 'g</div></div>' +
-          '<button class="size-step-btn" id="p-plus" aria-label="Increase">+</button>' +
+          '<button class="size-step-btn" id="p-minus" aria-label="Уменьшить количество порций">−</button>' +
+          '<div><div class="size-val" id="p-size">' + Math.round(size) + '</div><div class="size-sub" id="p-grams">~' + Math.round(size*portionWeight) + ' г</div></div>' +
+          '<button class="size-step-btn" id="p-plus" aria-label="Увеличить количество порций">+</button>' +
         '</div>' +
       '</div>' +
       '<div class="popup-actions">' +
-        '<button class="popup-cancel" id="p-cancel">Cancel</button>' +
-        '<button class="popup-save" id="p-save">Save and send</button>' +
+        '<button class="popup-cancel" id="p-cancel">Отмена</button>' +
+        '<button class="popup-save" id="p-save">Сохранить и отправить</button>' +
       '</div>';
     overlay.appendChild(popup);
     this._shadow.querySelector('.card').appendChild(overlay);
@@ -158,10 +158,10 @@ export class Dialogs {
       }
       if (!hOk || !mOk) {
         warnEl.style.display = '';
-        warnEl.textContent = 'Time must be 00:00–23:59';
+        warnEl.textContent = 'Укажите время от 00:00 до 23:59';
       } else if (dup) {
         warnEl.style.display = '';
-        warnEl.textContent = 'Another feeding already scheduled at this time';
+        warnEl.textContent = 'На это время уже запланировано кормление';
       } else {
         warnEl.style.display = 'none';
       }
@@ -180,18 +180,18 @@ export class Dialogs {
     pMinusBtn.addEventListener('click', function() {
       if (size <= 1) return;
       self._vibrate(5);
-      size--; sizeEl.textContent = size; gramsEl.textContent = '~' + Math.round(size*portionWeight) + 'g';
+      size--; sizeEl.textContent = size; gramsEl.textContent = '~' + Math.round(size*portionWeight) + ' г';
       updateSizeButtons();
     });
     pPlusBtn.addEventListener('click', function() {
       if (size >= 10) return;
       self._vibrate(5);
-      size++; sizeEl.textContent = size; gramsEl.textContent = '~' + Math.round(size*portionWeight) + 'g';
+      size++; sizeEl.textContent = size; gramsEl.textContent = '~' + Math.round(size*portionWeight) + ' г';
       updateSizeButtons();
     });
     updateSizeButtons();
     var saveBtn = popup.querySelector('#p-save');
-    saveBtn.addEventListener('click', function() {
+    saveBtn.addEventListener('click', async function() {
       if (saveBtn.disabled) return;
       if (!validate()) { self._vibrate(40); return; }
       saveBtn.disabled = true;
@@ -203,10 +203,17 @@ export class Dialogs {
         self._schedules[slot] = { hour: h, minute: m, size: size };
       }
       saved = true;
-      self._sendSchedule();
+      self._pending = true;
       dismiss();
-      self._showSent();
-      setTimeout(function() { self._renderTab('schedule'); }, 400);
+      try {
+        await self._sendSchedule();
+        self._renderHeader();
+        self._showSent();
+      } catch (error) {
+        self._renderHeader();
+        self._showMqttError(error, 'Не удалось отправить расписание');
+      }
+      self._renderTab('schedule');
     });
     validate();
     if (hourInput && hourInput.focus) hourInput.focus();

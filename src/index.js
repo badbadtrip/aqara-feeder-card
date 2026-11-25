@@ -11,5 +11,5 @@ if (!customElements.get('aqara-feeder-card')) {
   customElements.define('aqara-feeder-card-editor', AqaraFeederCardEditor);
   customElements.define('aqara-feeder-card', AqaraFeederCard);
   window.customCards = window.customCards || [];
-  window.customCards.push({ type: 'aqara-feeder-card', name: 'Aqara Feeder Card', description: 'Aqara pet feeder via zigbee2mqtt' });
+  window.customCards.push({ type: 'aqara-feeder-card', name: 'Кормушка Aqara', description: 'Расписание и ручное кормление через Zigbee2MQTT' });
 }

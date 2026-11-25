@@ -1,3 +1,5 @@
+class MissingMqttTopicError extends Error {}
+
 /** Schedule state: reading the feeder schedule, local edits, MQTT publishing, feeding. */
 export class ScheduleState {
   _getActualSchedule() {
@@ -34,12 +36,22 @@ export class ScheduleState {
     var actual = this._getActualSchedule();
     return this._scheduleSignature(actual) !== this._scheduleSignature(this._schedules);
   }
-  _mqttPublish(payload) {
-    var args = { topic: this._config.topic, payload: JSON.stringify(payload) };
-    if (this._config.mqtt_retain) args.retain = true;
-    this._hass.callService('mqtt', 'publish', args);
+  _requireMqttTopic() {
+    var topic = this._config.topic;
+    if (typeof topic !== 'string' || !topic.trim()) {
+      throw new MissingMqttTopicError('Укажите MQTT topic для команд в основных настройках карточки.');
+    }
+    return topic;
   }
-  _sendSchedule() {
+  _showMqttError(error, message) {
+    this._showSnackbar(error instanceof MissingMqttTopicError ? error.message : message);
+  }
+  _mqttPublish(payload) {
+    var args = { topic: this._requireMqttTopic(), payload: JSON.stringify(payload) };
+    if (this._config.mqtt_retain) args.retain = true;
+    return this._hass.callService('mqtt', 'publish', args);
+  }
+  async _sendSchedule() {
     var schedules = this._schedules;
     if (!schedules || schedules.length === 0) return;
     var payload = {
@@ -47,23 +59,22 @@ export class ScheduleState {
         return { days: 'everyday', hour: Math.round(s.hour), minute: Math.round(s.minute), size: Math.round(s.size) };
       })
     };
-    this._lastSent = Date.now();
-    this._pending = false;
-    this._mqttPublish(payload);
-  }
-  _feedNow(size) {
-    var self = this;
-    var servingEntity = this._e('entity_serving_size');
-    var chain;
-    if (servingEntity && this._hass.states[servingEntity]) {
-      chain = this._hass.callService('number', 'set_value', { entity_id: servingEntity, value: size }).then(function() {
-        self._mqttPublish({ feed: 'START' });
-      });
-    } else {
-      this._mqttPublish({ feed: 'START' });
-      chain = Promise.resolve();
+    var config = this._config;
+    var signature = this._scheduleSignature(payload.schedule);
+    await this._mqttPublish(payload);
+    if (this._config === config && this._scheduleSignature(this._schedules) === signature) {
+      this._lastSent = Date.now();
+      this._pending = false;
     }
-    return chain.then(function() { self._lastFeedSize = size; });
+  }
+  async _feedNow(size) {
+    this._requireMqttTopic();
+    var servingEntity = this._e('entity_serving_size');
+    if (servingEntity && this._hass.states[servingEntity]) {
+      await this._hass.callService('number', 'set_value', { entity_id: servingEntity, value: size });
+    }
+    await this._mqttPublish({ feed: 'START' });
+    this._lastFeedSize = size;
   }
   _markPending() {
     this._pending = true;

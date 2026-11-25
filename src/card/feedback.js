@@ -20,7 +20,7 @@ export class Feedback {
     var origText = btn ? btn.textContent : null;
     var origBg = btn ? btn.style.background : null;
     if (btn) {
-      btn.textContent = '✓ Fed!';
+      btn.textContent = '✓ Корм выдан';
       btn.style.background = G;
       btn.style.color = '#000';
       btn.disabled = true;
@@ -39,7 +39,7 @@ export class Feedback {
     var sent = document.createElement('span');
     sent.className = 'badge';
     sent.style.cssText = 'background:rgba(206,245,149,.15);color:' + G;
-    sent.textContent = 'Sent!';
+    sent.textContent = 'Отправлено';
     badges.appendChild(sent);
     var self = this;
     setTimeout(function() {

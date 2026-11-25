@@ -1,6 +1,7 @@
 import { editorSections } from './sections.js';
 import { editorStyles } from './styles.js';
 import { DeviceDiscovery } from './discovery-controller.js';
+import { FEEDER_CONFIG_KEYS } from './device-discovery.js';
 
 /** Visual config editor: <aqara-feeder-card-editor>. */
 export class AqaraFeederCardEditor extends HTMLElement {
@@ -9,20 +10,21 @@ export class AqaraFeederCardEditor extends HTMLElement {
     this._shadow = this.attachShadow({ mode: 'open' });
     this._config = {};
     this._hass = null;
-    this._devices = [];
     this._entities = [];
     this._feederDevices = [];
     this._deviceRegistryPromise = null;
     this._deviceRegistryLoaded = false;
     this._deviceRegistryError = null;
-    this._deviceStatusMessage = '';
     this._hasConfig = false;
+    this._skipAutoSelect = false;
+    this._editedFeederFields = new Set();
     this._open = { general: true, colors: false, labels: false, entities_schedule: false, entities_stats: false, entities_control: false, entities_device: false };
   }
   set hass(hass) {
     this._hass = hass;
     this._loadDeviceRegistry();
     this._shadow.querySelectorAll('ha-entity-picker').forEach(function(p) { p.hass = hass; });
+    this._refreshEntityStatuses();
   }
   setConfig(config) {
     this._hasConfig = true;
@@ -51,70 +53,69 @@ export class AqaraFeederCardEditor extends HTMLElement {
   }
   _update(key, val) {
     var newCfg = Object.assign({}, this._config);
-    if (val === '' || val === null || val === undefined) {
+    var isFeederField = FEEDER_CONFIG_KEYS.includes(key);
+    if (isFeederField) {
+      this._skipAutoSelect = true;
+      this._editedFeederFields.add(key);
+      newCfg[key] = val || '';
+    } else if (val === '' || val === null || val === undefined) {
       delete newCfg[key];
     } else {
       newCfg[key] = val;
     }
     this._config = newCfg;
+    if (newCfg.device_id && isFeederField) this._populateDeviceSelects();
+    this._refreshEntityStatuses();
     this._fire(newCfg);
   }
   _sections() {
     return editorSections();
   }
-  _entityStatus(field, value) {
+  _entityStatus(value, optional) {
     if (!value) {
-      return { kind: 'muted', label: field.note && field.note.type === 'template' ? 'Optional' : 'Not set' };
+      return { kind: 'muted', label: optional ? 'Необязательно' : 'Не задано' };
     }
-    if (this._hass && this._hass.states && this._hass.states[value]) {
-      return { kind: 'ready', label: 'Available' };
-    }
-    return { kind: 'missing', label: 'Not found' };
+    if (!this._hass || !this._hass.states) return { kind: 'muted', label: 'Проверка…' };
+    var state = this._hass.states[value];
+    if (!state) return { kind: 'missing', label: 'Не найдено' };
+    if (state.state === 'unavailable') return { kind: 'missing', label: 'Недоступно' };
+    if (state.state === 'unknown') return { kind: 'muted', label: 'Состояние неизвестно' };
+    return { kind: 'ready', label: 'Доступно' };
   }
-  _setupSummary() {
-    var keys = ['entity_schedule', 'entity_portions_day', 'entity_weight_day', 'entity_portion_weight',
-      'entity_serving_size', 'entity_feeding_source', 'entity_feeding_size', 'entity_mode',
-      'entity_child_lock', 'entity_led', 'entity_error', 'entity_update'];
-    var mapped = keys.filter(function(key) { return !!this._config[key]; }, this);
-    var available = mapped.filter(function(key) {
-      return !this._hass || !this._hass.states || !!this._hass.states[this._config[key]];
+  _refreshEntityStatuses() {
+    this._shadow.querySelectorAll('.field-status').forEach(function(element) {
+      var key = element.dataset.entityKey;
+      var value = this._config[key] !== undefined ? this._config[key] : element.dataset.defaultEntity;
+      var status = this._entityStatus(value, element.dataset.optional === 'true');
+      var classes = 'field-status ' + status.kind;
+      if (element.className !== classes) element.className = classes;
+      if (element.textContent !== status.label) element.textContent = status.label;
     }, this);
-    var configured = !!this._config.device_id;
-    var status = configured && available.length === keys.length ? 'ready' : (configured ? 'partial' : 'idle');
-    var title = status === 'ready' ? 'Feeder connected' : (configured ? 'Check feeder setup' : 'Connect your feeder');
-    var detail = configured
-      ? available.length + ' of ' + keys.length + ' feeder entities are ready.'
-      : 'Select a feeder once and the card will fill in its controls and statistics.';
-    var topic = this._config.topic || '';
-    return '<section class="setup-card ' + status + '">' +
-      '<div class="setup-mark">' + (status === 'ready' ? '✓' : '•') + '</div>' +
-      '<div class="setup-copy"><strong>' + title + '</strong><span>' + detail + '</span>' +
-      (topic ? '<code>' + topic + '</code>' : '') + '</div>' +
-      '<span class="setup-count">' + available.length + '/' + keys.length + '</span>' +
-      '</section>';
   }
   _render() {
     var self = this;
     var cfg = this._config;
     this._shadow.innerHTML = '<style>' + editorStyles() + '</style>';
-    var setupEl = document.createElement('div');
-    setupEl.innerHTML = this._setupSummary();
-    this._shadow.appendChild(setupEl.firstChild);
     this._sections().forEach(function(section) {
       var isOpen = !!self._open[section.key];
       var sectionEl = document.createElement('div');
       sectionEl.className = 'section';
-      var header = document.createElement('div');
+      var header = document.createElement('button');
+      header.type = 'button';
       header.className = 'section-header';
+      header.setAttribute('aria-expanded', isOpen);
+      header.setAttribute('aria-controls', 'section-' + section.key);
       header.innerHTML =
-        '<span class="section-icon">' + section.icon + '</span>' +
+        '<span class="section-icon" aria-hidden="true">' + section.icon + '</span>' +
         '<span class="section-copy"><span class="section-title">' + section.title + '</span>' +
         (section.description ? '<span class="section-description">' + section.description + '</span>' : '') + '</span>' +
-        '<span class="section-arrow' + (isOpen ? ' open' : '') + '">▼</span>';
+        '<span class="section-arrow' + (isOpen ? ' open' : '') + '" aria-hidden="true">▼</span>';
       var body = document.createElement('div');
+      body.id = 'section-' + section.key;
       body.className = 'section-body' + (isOpen ? ' open' : '');
       header.addEventListener('click', function() {
         self._open[section.key] = !self._open[section.key];
+        header.setAttribute('aria-expanded', self._open[section.key]);
         var arrow = header.querySelector('.section-arrow');
         if (self._open[section.key]) {
           body.classList.add('open');
@@ -137,10 +138,11 @@ export class AqaraFeederCardEditor extends HTMLElement {
         fieldHead.appendChild(lbl);
         var val = cfg[f.key] !== undefined ? cfg[f.key] : f.default;
         if (f.type === 'entity') {
-          var entityStatus = self._entityStatus(f, val);
           var statusEl = document.createElement('span');
-          statusEl.className = 'field-status ' + entityStatus.kind;
-          statusEl.textContent = entityStatus.label;
+          statusEl.className = 'field-status';
+          statusEl.dataset.entityKey = f.key;
+          statusEl.dataset.defaultEntity = f.default;
+          statusEl.dataset.optional = String(!!f.note);
           fieldHead.appendChild(statusEl);
         }
         wrapper.appendChild(fieldHead);
@@ -151,19 +153,19 @@ export class AqaraFeederCardEditor extends HTMLElement {
           swatch.type = 'color';
           swatch.className = 'color-swatch';
           swatch.value = self._cssColorToHex(val || f.default);
-          swatch.title = 'Pick color';
-          swatch.setAttribute('aria-label', f.label + ' color picker');
+          swatch.title = 'Выбрать цвет';
+          swatch.setAttribute('aria-label', f.label + ' — выбор цвета');
           var textInput = document.createElement('input');
           textInput.type = 'text';
           textInput.className = 'color-text';
           textInput.value = val || f.default;
           textInput.placeholder = f.default;
           textInput.spellcheck = false;
-          textInput.setAttribute('aria-label', f.label + ' hex value');
+          textInput.setAttribute('aria-label', f.label + ' — код цвета');
           var resetBtn = document.createElement('button');
           resetBtn.className = 'color-reset';
-          resetBtn.title = 'Reset to default';
-          resetBtn.setAttribute('aria-label', 'Reset ' + f.label + ' to default');
+          resetBtn.title = 'Восстановить цвет по умолчанию';
+          resetBtn.setAttribute('aria-label', f.label + ' — восстановить цвет по умолчанию');
           resetBtn.textContent = '↺';
           (function(fKey, fDefault, sw, txt) {
             sw.addEventListener('input', function() {
@@ -208,20 +210,23 @@ export class AqaraFeederCardEditor extends HTMLElement {
           wrapper.appendChild(deviceSelect);
           var deviceStatus = document.createElement('div');
           deviceStatus.className = 'device-status';
+          deviceStatus.id = fieldId + '-status';
           deviceStatus.setAttribute('aria-live', 'polite');
+          deviceSelect.setAttribute('aria-describedby', deviceStatus.id);
           wrapper.appendChild(deviceStatus);
         } else if (f.type === 'checkbox') {
           var checkboxWrapper = document.createElement('label');
           checkboxWrapper.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;';
           var chk = document.createElement('input');
           chk.type = 'checkbox';
+          chk.setAttribute('aria-label', f.label);
           chk.checked = val === true || val === 'true';
           chk.style.cssText = 'width:18px;height:18px;cursor:pointer;';
           chk.addEventListener('change', function() {
             self._update(f.key, chk.checked);
           });
           var chkLabel = document.createElement('span');
-          chkLabel.textContent = 'Enabled';
+          chkLabel.textContent = 'Включено';
           chkLabel.style.cssText = 'font-size:12px;color:var(--primary-text-color,#fff);';
           checkboxWrapper.appendChild(chk);
           checkboxWrapper.appendChild(chkLabel);
@@ -239,12 +244,10 @@ export class AqaraFeederCardEditor extends HTMLElement {
           });
           wrapper.appendChild(inp);
         }
-        if (f.note && f.note.type !== 'z2m') {
+        if (f.note) {
           var noteEl = document.createElement('div');
           noteEl.className = 'note ' + f.note.type;
-          var icon = f.note.type === 'z2m'
-            ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 7V2"/><path d="M15 7V2"/><rect x="6" y="7" width="12" height="8" rx="1"/><path d="M9 22v-5h6v5"/></svg>'
-            : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
+          var icon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
           noteEl.innerHTML = '<span class="note-icon">' + icon + '</span><span>' + f.note.text + '</span>';
           wrapper.appendChild(noteEl);
         }
@@ -255,6 +258,7 @@ export class AqaraFeederCardEditor extends HTMLElement {
       self._shadow.appendChild(sectionEl);
     });
     this._populateDeviceSelects();
+    this._refreshEntityStatuses();
   }
 }
 
